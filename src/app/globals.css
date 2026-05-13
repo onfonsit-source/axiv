@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+
+/* Explicitly point to sources */
+@source "../**/*.{ts,tsx}";
+
+@theme {
+  --color-primary: #1DB97C;
+  --color-primary-dark: #0A8A5E;
+  
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-3xl: 2.5rem;
+  
+  --shadow-premium: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom Utilities */
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #e5e7eb;
+    border-radius: 10px;
+  }
+}
+
+@utility backdrop-glass {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* Global Styles */
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8F9FA;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151;
+}
+
+.dark .backdrop-glass {
+  background: rgba(18, 18, 18, 0.7);
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+#root, __next {
+  height: 100%;
+}

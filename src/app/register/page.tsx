@@ -1,0 +1,479 @@
+'use client';
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/lib/supabaseClient';
+import { 
+  Play, 
+  Search, 
+  CheckCircle2, 
+  Loader2, 
+  MapPin, 
+  Sparkles,
+  ChevronRight,
+  Plus,
+  Info,
+  Clock,
+  Phone,
+  ShoppingBag
+} from 'lucide-react';
+import Image from 'next/image';
+import { useAppStore } from '@/lib/store';
+
+export default function RegisterPage() {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [successItems, setSuccessItems] = useState<string[]>([]);
+  const [coupangProducts, setCoupangProducts] = useState<any[]>([]);
+
+  // Fetch Coupang Products when loading starts
+  React.useEffect(() => {
+    if (loading && !result) {
+      fetch('/api/coupang')
+        .then(res => res.json())
+        .then(data => {
+          if (data.data) setCoupangProducts(data.data);
+        })
+        .catch(err => console.error('Coupang fetch error:', err));
+    }
+  }, [loading, result]);
+
+  const { showToast } = useAppStore();
+
+  const handleAnalyze = async () => {
+    if (!url) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      setResult(data);
+      showToast('분석이 완료되었습니다.', 'success');
+    } catch (error: any) {
+      console.error('Analysis failed:', error);
+      showToast(`분석 실패: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlaceChange = (index: number, field: string, value: any) => {
+    if (!result) return;
+    const newPlaces = [...result.places];
+    newPlaces[index] = { ...newPlaces[index], [field]: value };
+    setResult({ ...result, places: newPlaces });
+  };
+
+  const handleSave = async (place: any, index: number) => {
+
+    if (successItems.includes(place.place_name)) return;
+    
+    setLoading(true);
+    try {
+      // 1. Content Upsert (status 컬럼 제외 - 에러 방지)
+      const { data: contentData, error: contentError } = await supabase
+        .from('contents')
+        .upsert([
+          {
+            video_id: result.video_id,
+            title: result.metadata.title,
+            url: url,
+            creator_name: result.metadata.creator_name,
+            creator_channel_url: `https://www.youtube.com/channel/${result.video_id}`,
+            thumbnail_url: result.metadata.thumbnail_url
+          }
+        ], { onConflict: 'video_id' })
+        .select()
+        .single();
+
+      if (contentError) throw contentError;
+
+      // 2. Place Dedup & Save
+      let placeId: string;
+      const { data: existingPlace } = await supabase
+        .from('places')
+        .select('id')
+        .eq('place_name', place.place_name)
+        .eq('address', place.address || place.address_hint)
+        .maybeSingle();
+
+      if (existingPlace) {
+        placeId = existingPlace.id;
+      } else {
+        const { data: newPlace, error: placeError } = await supabase
+          .from('places')
+          .insert([{
+            place_name: place.place_name,
+            address: place.address || place.address_hint,
+            category: place.category,
+            lat: place.lat,
+            lng: place.lng,
+            phone: place.phone
+          }])
+          .select()
+          .single();
+
+        if (placeError) {
+          console.error('Place insert error:', JSON.stringify(placeError, null, 2));
+          throw new Error(`Place 저장 실패: ${placeError.message || '알 수 없는 오류'}`);
+        }
+        placeId = newPlace.id;
+      }
+
+
+      // 3. Link Upsert (풍부한 상세 정보 포함하여 저장)
+      const richSummary = `
+[영업시간]
+${place.business_hours || '정보 없음'}
+
+[메뉴 및 가격]
+${place.menu_with_prices || '정보 없음'}
+
+[가게 상세 설명]
+${place.place_description || '정보 없음'}
+
+[AI 요약]
+${place.summary || ''}
+      `.trim();
+
+      const { error: linkError } = await supabase
+        .from('content_places')
+        .upsert([{
+          content_id: contentData.id,
+          place_id: placeId,
+          timeline_seconds: place.timeline_seconds,
+          creator_review: place.creator_review,
+          summary: richSummary
+        }], { onConflict: 'content_id,place_id' });
+
+
+      if (linkError) throw linkError;
+
+      setSuccessItems([...successItems, place.place_name]);
+      showToast(`${place.place_name} 등록 성공!`, 'success');
+    } catch (error: any) {
+      console.error('Save error detailed:', error);
+      showToast(`저장 실패: ${error.message || JSON.stringify(error)}`, 'error');
+    } finally {
+
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 pt-20 overflow-y-auto custom-scrollbar">
+      <div className="max-w-4xl mx-auto px-4 pb-40">
+
+        
+        {/* Header Section */}
+        <div className="mb-8 pt-4">
+          <div className="flex items-center gap-2 text-emerald-500 mb-2">
+            <Sparkles className="w-4 h-4 fill-emerald-500/20" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Automated Content Curation</span>
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter mb-2">
+            영상 속 장소 <span className="text-emerald-500 font-black">발굴</span>
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold max-w-xl leading-relaxed">
+            AI가 영상 속 모든 장소를 찾아 상세 정보를 자동 정리합니다.
+          </p>
+        </div>
+
+        {/* Input Area */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-6 shadow-xl border border-gray-100 dark:border-slate-800 mb-10">
+          <div className="flex flex-col gap-3">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                <Play className="w-5 h-5 text-red-500 fill-red-500" />
+              </div>
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="유튜브 URL 주소를 입력하세요"
+                className="w-full pl-14 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-500/20 focus:bg-white dark:focus:bg-slate-900 outline-none rounded-2xl transition-all text-sm font-bold"
+              />
+            </div>
+            <button
+              onClick={handleAnalyze}
+              disabled={loading || !url}
+              className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 text-white font-black rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <span>AI 분석 시작</span>
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Results List */}
+        <AnimatePresence mode="wait">
+          {result && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 gap-4">
+                <div>
+                  <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Found {result.places?.length} Places</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center text-[10px]">📺</span>
+                    <span className="text-xs font-black text-slate-600 dark:text-slate-300">Creator: {result.metadata.creator_name}</span>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="space-y-4">
+                {result.places?.map((place: any, index: number) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-lg border border-slate-100 dark:border-slate-800 overflow-hidden relative group"
+                  >
+                    <div className="flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{place.category}</span>
+                            <span className="text-[9px] font-bold text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">Verified</span>
+                          </div>
+                          <h3 className="text-xl font-black text-slate-900 dark:text-white leading-tight group-hover:text-emerald-500 transition-colors">
+                            {place.place_name}
+                          </h3>
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg">
+                          <Clock className="w-3 h-3" />
+                          {Math.floor(place.timeline_seconds / 60)}:{(place.timeline_seconds % 60).toString().padStart(2, '0')}
+                        </div>
+                      </div>
+
+                      {/* Final Verified Info Grid (Editable) */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4 border-y border-slate-50 dark:border-slate-800">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <MapPin className="w-3 h-3 text-emerald-500" />
+                            Address
+                          </label>
+                          <input 
+                            value={place.address || ''}
+                            onChange={(e) => handlePlaceChange(index, 'address', e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                            placeholder="주소를 입력하세요"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Phone className="w-3 h-3 text-emerald-500" />
+                            Phone
+                          </label>
+                          <input 
+                            value={place.phone || ''}
+                            onChange={(e) => handlePlaceChange(index, 'phone', e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                            placeholder="전화번호를 입력하세요"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Rich Shop Info (Editable) */}
+                      <div className="space-y-4">
+                        {/* Menu & Prices Section */}
+                        <div className="bg-emerald-50/30 dark:bg-emerald-900/10 p-4 rounded-2xl border border-emerald-100/50 dark:border-emerald-800/30">
+                          <div className="flex items-center gap-2 mb-3">
+                            <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Menu & Prices</span>
+                          </div>
+                          <textarea 
+                            value={place.menu_with_prices || ''}
+                            onChange={(e) => handlePlaceChange(index, 'menu_with_prices', e.target.value)}
+                            className="w-full bg-white/50 dark:bg-slate-900/50 border-none rounded-xl px-4 py-3 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 transition-all outline-none min-h-[100px] resize-none leading-relaxed"
+                            placeholder="메뉴 및 가격 정보를 입력하세요"
+                          />
+                        </div>
+
+                        {/* Business Hours & Details Section */}
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Business Hours & Details</span>
+                          </div>
+                          <div className="space-y-3">
+                            <input 
+                              value={place.business_hours || ''}
+                              onChange={(e) => handlePlaceChange(index, 'business_hours', e.target.value)}
+                              className="w-full bg-white/50 dark:bg-slate-900/50 border-none rounded-xl px-4 py-2.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                              placeholder="영업시간 정보를 입력하세요"
+                            />
+                            <textarea 
+                              value={place.place_description || ''}
+                              onChange={(e) => handlePlaceChange(index, 'place_description', e.target.value)}
+                              className="w-full bg-white/50 dark:bg-slate-900/50 border-none rounded-xl px-4 py-3 text-[11px] font-medium text-slate-500 dark:text-slate-400 focus:ring-2 focus:ring-emerald-500 transition-all outline-none min-h-[80px] resize-none leading-relaxed"
+                              placeholder="추가 장소 설명을 입력하세요"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+
+                      <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-2xl border-l-4 border-emerald-500">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Creator Insight</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed font-bold">"{place.creator_review}"</p>
+                      </div>
+
+
+
+                      <button
+                        onClick={() => handleSave(place, index)}
+                        disabled={successItems.includes(place.place_name) || place.place_name.includes('미상') || !place.place_name}
+
+                        className={`
+                          w-full py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2
+                          ${successItems.includes(place.place_name)
+                            ? 'bg-emerald-100 text-emerald-600'
+                            : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xl shadow-slate-900/10'
+                          }
+                        `}
+                      >
+                        {successItems.includes(place.place_name) ? (
+                          <><CheckCircle2 className="w-4 h-4" /><span>등록 완료</span></>
+                        ) : place.place_name.includes('미상') || !place.place_name ? (
+                          <span>상호명 확인 필요</span>
+                        ) : (
+                          <><Plus className="w-4 h-4" /><span>등록</span></>
+                        )}
+
+
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+
+      </div>
+
+      {/* Analysis Loading Overlay */}
+      <AnimatePresence>
+        {loading && !result && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-white"
+          >
+            <div className="max-w-md w-full space-y-12">
+              {/* Top: AI Pumping Indicator */}
+              <div className="text-center space-y-4">
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.1, 1],
+                    rotate: [0, 5, -5, 0]
+                  }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="w-20 h-20 bg-emerald-500 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.5)]"
+                >
+                  <Sparkles className="w-10 h-10 text-white" />
+                </motion.div>
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black tracking-tight">AI 분석 중...</h2>
+                  <p className="text-slate-400 text-sm font-medium">영상을 분석하여 상세 정보를 추출하고 있습니다.</p>
+                </div>
+                <div className="flex justify-center gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                      className="w-1.5 h-1.5 bg-emerald-500 rounded-full"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Middle: Coupang Partners Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Coupang Recommended</span>
+                  <span className="text-[10px] font-bold text-slate-500">파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.</span>
+                </div>
+                
+                <div className="relative overflow-hidden rounded-3xl bg-white/5 border border-white/10 p-4">
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                    {coupangProducts.length > 0 ? (
+                      coupangProducts.map((product, idx) => (
+                        <motion.div 
+                          key={idx}
+                          initial={{ x: 50, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="flex-shrink-0 w-[240px] snap-center bg-white/10 rounded-2xl overflow-hidden border border-white/5 group"
+                        >
+                          <div className="relative aspect-square">
+                            <Image 
+                              src={product.productImage} 
+                              alt={product.productName}
+                              fill
+                              className="object-cover transition-transform group-hover:scale-110"
+                            />
+                            <div className="absolute top-2 right-2 bg-rose-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow-lg">
+                              SALE
+                            </div>
+                          </div>
+                          <div className="p-3 space-y-2">
+                            <p className="text-[11px] font-bold text-slate-200 line-clamp-1">{product.productName}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-emerald-400 font-black text-sm">{product.productPrice.toLocaleString()}원</span>
+                              <a 
+                                href={product.productUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-lg hover:bg-emerald-400 hover:text-white transition-colors"
+                              >
+                                구매하기
+                              </a>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="w-full py-12 flex flex-col items-center justify-center text-slate-500 gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span className="text-xs font-bold">특가 상품 불러오는 중...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom: Progress Message */}
+              <motion.p 
+                animate={{ opacity: [0.4, 0.7, 0.4] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="text-center text-[10px] text-slate-500 font-medium"
+              >
+                영상이 길 경우 최대 1분 정도 소요될 수 있습니다.
+              </motion.p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
