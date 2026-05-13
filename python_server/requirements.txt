@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+requests
+yt-dlp
+duckduckgo_search
+geopy
+python-dotenv
+pydantic
