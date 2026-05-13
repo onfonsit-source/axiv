@@ -63,7 +63,8 @@ async function callNVIDIA(prompt: string) {
     const data = await response.json();
     if (!data.choices?.[0]) {
         console.error('NVIDIA API Error:', JSON.stringify(data));
-        throw new Error('NVIDIA response error');
+        const errMsg = data.detail || data.message || data.error?.message || '알 수 없는 오류';
+        throw new Error(`NVIDIA API 오류: ${typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg)}`);
     }
     return data.choices[0].message.content;
   } catch (error) {
