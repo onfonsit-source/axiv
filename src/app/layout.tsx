@@ -6,10 +6,13 @@ import Header from '@/components/layout/Header';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
+export const viewport = {
+  themeColor: '#1DB97C',
+};
+
 export const metadata: Metadata = {
   title: 'AXIV | AI 기반 장소 큐레이션',
   description: '유튜브 크리에이터가 소개한 장소를 지도에서 탐색하세요.',
-  themeColor: '#1DB97C',
 };
 
 import GlobalOverlay from '@/components/layout/GlobalOverlay';
