@@ -36,8 +36,10 @@ export default function UserMenu() {
   };
 
   const menuItems = [
-    { icon: PlusCircle, label: '장소 등록', action: () => { router.push('/register'); setIsOpen(false); } },
-    { icon: User, label: '마이페이지', action: () => { router.push('/mypage'); setIsOpen(false); } },
+    ...(user ? [
+      { icon: PlusCircle, label: '장소 등록', action: () => { router.push('/register'); setIsOpen(false); } },
+      { icon: User, label: '마이페이지', action: () => { router.push('/mypage'); setIsOpen(false); } },
+    ] : []),
     { icon: MessageCircle, label: '제보 및 문의', action: () => { router.push('/contact'); setIsOpen(false); } },
   ];
 

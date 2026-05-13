@@ -20,9 +20,24 @@ import {
 import Image from 'next/image';
 import { useAppStore } from '@/lib/store';
 
+import { useRouter } from 'next/navigation';
+
 export default function RegisterPage() {
+  const router = useRouter();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        alert('로그인이 필요한 서비스입니다.');
+        router.push('/');
+      } else {
+        setIsAuthChecking(false);
+      }
+    });
+  }, [router]);
   const [result, setResult] = useState<any>(null);
   const [successItems, setSuccessItems] = useState<string[]>([]);
   const [coupangProducts, setCoupangProducts] = useState<any[]>([]);
@@ -165,6 +180,15 @@ ${place.summary || ''}
       setLoading(false);
     }
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+        <p className="text-sm font-bold text-slate-400">인증 정보를 확인하고 있습니다...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-slate-50 dark:bg-slate-950 pt-20 overflow-y-auto custom-scrollbar">
