@@ -66,8 +66,17 @@ export default function RegisterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Raw response:', responseText);
+        throw new Error(`서버 응답 파싱 실패 (상태 코드: ${response.status}): ${responseText.substring(0, 100)}`);
+      }
+      
+      if (!response.ok || data.error) throw new Error(data.error || '알 수 없는 서버 에러');
       setResult(data);
       showToast('분석이 완료되었습니다.', 'success');
     } catch (error: any) {

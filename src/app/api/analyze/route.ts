@@ -87,6 +87,10 @@ export async function POST(req: Request) {
       `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${process.env.YOUTUBE_API_KEY}`
     );
     const metaData = await metaRes.json();
+    if (metaData.error) {
+      console.error('YouTube API Error:', metaData.error);
+      return NextResponse.json({ error: `YouTube API 에러: ${metaData.error.message}` }, { status: 400 });
+    }
     if (!metaData.items || metaData.items.length === 0) {
       return NextResponse.json({ error: '영상을 찾을 수 없습니다.' }, { status: 404 });
     }
@@ -125,7 +129,7 @@ export async function POST(req: Request) {
       4. 응답은 오직 JSON 배열만 반환하세요.
       5. 중요: JSON 문자열 내부에 실제 줄바꿈(raw newline)을 절대 넣지 마세요. 모든 줄바꿈은 반드시 \\n으로 이스케이프해야 합니다.
       
-      응답은 오직 아래 형식의 JSON 배열만 반환하세요:
+      응답은 오직 아래 형식의 JSON 배열만 반환하세요 (Do NOT use markdown or comments):
       [
         {
           "place_name": "장소명",
@@ -143,33 +147,24 @@ export async function POST(req: Request) {
 
     let places = [];
     try {
-      // JSON 추출 로직 강화: 제어 문자(줄바꿈 등)가 문자열 내에 그대로 있을 경우 이스케이프 처리
-      const cleanJson = (str: string) => {
-        const jsonMatch = str.match(/\[[\s\S]*\]/);
-        let target = jsonMatch ? jsonMatch[0] : str.replace(/```json|```/g, '').trim();
-        // 문자열 내 실제 줄바꿈을 \n으로 변환하는 등의 전처리 (위험할 수 있으므로 주의해서 적용)
-        return target.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-      };
+      let jsonStr = extractionResult;
+      const startIndex = jsonStr.indexOf('[');
+      const endIndex = jsonStr.lastIndexOf(']');
+      if (startIndex !== -1 && endIndex !== -1) {
+        jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+      }
       
-      // 사실 위 방법보다는 AI가 준 결과에서 제어 문자를 제거/수정하는 더 정밀한 방법이 필요함
-      // 여기서는 간단히 이스케이프되지 않은 제어문자 에러를 피하기 위해 전처리 시도
-      const jsonMatch = extractionResult.match(/\[[\s\S]*\]/);
-      let jsonStr = jsonMatch ? jsonMatch[0] : extractionResult.replace(/```json|```/g, '').trim();
-      
-      // JSON 내의 실제 줄바꿈 등을 안전하게 처리 (문자열 값 내부의 줄바꿈만 골라내는 것은 어려우므로 전체적으로 다듬음)
-      // 단, 구조적 줄바꿈(키-값 사이 등)은 유지해야 하므로, 복잡한 replace보다는 AI 프롬프트를 강화하는 것이 좋음
-      places = JSON.parse(jsonStr);
+      try {
+        places = JSON.parse(jsonStr);
+      } catch (parseError) {
+        // 나이브 트레일링 콤마 제거 시도
+        jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1');
+        places = JSON.parse(jsonStr);
+      }
     } catch (e: any) {
       console.error('NVIDIA Extraction Parse Error:', e, extractionResult);
-      // 만약 에러가 발생하면, AI에게 다시 한 번 'Escape newlines'를 강조하여 요청하거나 수동으로 다듬음
-      try {
-          // 아주 단순한 시도: \n을 \\n으로 바꾸고 다시 시도
-          const fallbackStr = extractionResult.match(/\[[\s\S]*\]/)?.[0] || "";
-          // 이 방법은 JSON 구조 자체를 깨트릴 수 있으므로 최후의 수단
-          places = JSON.parse(fallbackStr.replace(/\n/g, ' ')); 
-      } catch (e2: any) {
-          return NextResponse.json({ error: `AI 분석 결과 파싱 실패: ${e.message}` }, { status: 500 });
-      }
+      const snippet = extractionResult.substring(0, 100).replace(/\n/g, '\\n');
+      return NextResponse.json({ error: `AI 파싱 실패: ${e.message}. 원본: ${snippet}` }, { status: 500 });
     }
 
     // 4. Tavily Search & Greedy Refinement
