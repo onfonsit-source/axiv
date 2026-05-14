@@ -90,12 +90,38 @@ def perform_free_search(query):
         print(f"Search Error: {e}")
         return ""
 
+
+def perform_deep_search(title, uploader):
+    """5단계 심층 검색: 제목→장소명→전화번호/주소→메뉴/영업시간→블로그리뷰"""
+    context = ""
+    queries = [
+        f"{title} {uploader} 맛집 위치 주소",
+        f"{title} 전화번호 주소",
+        f"{title} 영업시간 휴무일",
+        f"{title} 메뉴 가격",
+        f"{uploader} {title} 블로그 리뷰 후기",
+    ]
+    labels = ["일반검색", "전화번호주소", "영업시간", "메뉴정보", "블로그리뷰"]
+    try:
+        for q, lbl in zip(queries, labels):
+            try:
+                with DDGS() as dg:
+                    results = list(dg.text(q, max_results=5))
+                    for r in results:
+                        context += f"[{lbl}] {r['body']}\n"
+            except:
+                continue
+    except Exception as e:
+        print(f"Deep Search Error: {e}")
+    return context if context else perform_free_search(f"{title} {uploader}")
+
+
 def call_ai_model(prompt):
     """NVIDIA NIM API를 사용하여 AI 분석을 수행합니다."""
     NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
     NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-    NVIDIA_MODEL = "google/gemma-4-31b-it"
-    
+    # 분석/추출 작업에는 qwen3-coder-480b 사용 (추출 정확도 향상)
+    NVIDIA_MODEL = "qwen/qwen3-coder-480b-a35b-instruct"
     if not NVIDIA_API_KEY:
         return "AI API 키가 설정되지 않았습니다."
 
