@@ -234,6 +234,14 @@ export default function MapContainer({ places, onBoundsChange }: MapProps) {
                       </div>
                     )}
 
+                    {/* Break time */}
+                    {selectedPlace.break_time && (
+                      <div className="flex items-center gap-2 text-[11px] text-amber-500">
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        <span>브레이크 {selectedPlace.break_time}</span>
+                      </div>
+                    )}
+
                     {/* Contact + waiting/parking badges */}
                     <div className="flex items-center gap-2 flex-wrap">
                       {selectedPlace.phone && (

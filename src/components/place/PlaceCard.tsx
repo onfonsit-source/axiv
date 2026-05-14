@@ -31,6 +31,7 @@ type Place = {
   phone?: string;
   representative_menu?: string;
   business_hours?: string;
+  break_time?: string;
   place_description?: string;
   waiting_tip?: string;
   parking_info?: string;
@@ -101,6 +102,14 @@ export default function PlaceCard({ place, mrtData }: { place: Place; mrtData?: 
               <p className="text-[10px] text-slate-500 flex items-center gap-1">
                 <Clock className="w-3 h-3 shrink-0" />
                 <span>{place.business_hours}</span>
+              </p>
+            )}
+
+            {/* Break time */}
+            {place.break_time && (
+              <p className="text-[10px] text-amber-500 flex items-center gap-1">
+                <Clock className="w-3 h-3 shrink-0" />
+                <span>브레이크타임 {place.break_time}</span>
               </p>
             )}
 

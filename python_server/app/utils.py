@@ -91,6 +91,29 @@ def perform_free_search(query):
         return ""
 
 
+def perform_place_detail_search(place_name):
+    """상호명 기반 상세 검색: 주소, 전화번호, 메뉴/가격, 영업시간/브레이크타임"""
+    context = ""
+    queries = [
+        f"{place_name} 전화번호 주소",
+        f"{place_name} 메뉴 가격",
+        f"{place_name} 영업시간 브레이크타임 휴무일",
+    ]
+    labels = ["전화번호주소", "메뉴정보", "영업시간"]
+    try:
+        for q, lbl in zip(queries, labels):
+            try:
+                with DDGS() as dg:
+                    results = list(dg.text(q, max_results=5))
+                    for r in results:
+                        context += f"[{lbl}] {r['body']}\n"
+            except:
+                continue
+    except Exception as e:
+        print(f"Place Detail Search Error for {place_name}: {e}")
+    return context
+
+
 def perform_deep_search(title, uploader):
     """5단계 심층 검색: 제목→장소명→전화번호/주소→메뉴/영업시간→블로그리뷰"""
     context = ""

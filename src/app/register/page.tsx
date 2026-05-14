@@ -149,6 +149,7 @@ export default function RegisterPage() {
             lng: place.lng,
             phone: place.phone,
             business_hours: place.business_hours || null,
+            break_time: place.break_time || null,
             representative_menu: place.menu_with_prices || null,
             place_description: place.place_description || null,
             waiting_tip: place.waiting_tip || null,
@@ -359,11 +360,17 @@ ${place.summary || ''}
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Business Hours & Details</span>
                           </div>
                           <div className="space-y-3">
-                            <input 
+                            <input
                               value={place.business_hours || ''}
                               onChange={(e) => handlePlaceChange(index, 'business_hours', e.target.value)}
                               className="w-full bg-white/50 dark:bg-slate-900/50 border-none rounded-xl px-4 py-2.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
                               placeholder="영업시간 정보를 입력하세요"
+                            />
+                            <input
+                              value={place.break_time || ''}
+                              onChange={(e) => handlePlaceChange(index, 'break_time', e.target.value)}
+                              className="w-full bg-white/50 dark:bg-slate-900/50 border-none rounded-xl px-4 py-2.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                              placeholder="브레이크타임 정보를 입력하세요 (예: 15:00-17:00)"
                             />
                             <textarea 
                               value={place.place_description || ''}

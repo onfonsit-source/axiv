@@ -255,6 +255,7 @@ export default function PlaceDetailPage() {
         phone: editData.phone,
         category: editData.category,
         business_hours: editData.business_hours,
+        break_time: editData.break_time,
         representative_menu: editData.representative_menu
       })
       .eq('id', id);
@@ -453,6 +454,24 @@ export default function PlaceDetailPage() {
                       />
                     ) : (
                       <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{place.business_hours || '정보 없음'}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Break Time</p>
+                    {isEditing ? (
+                      <input
+                        value={editData.break_time || ''}
+                        onChange={(e) => setEditData({...editData, break_time: e.target.value})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 p-2 rounded-lg text-sm font-bold outline-none border-b-2 border-emerald-500"
+                      />
+                    ) : (
+                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{place.break_time || '정보 없음'}</p>
                     )}
                   </div>
                 </div>
