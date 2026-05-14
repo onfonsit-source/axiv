@@ -2,12 +2,12 @@
   "name": "axiv",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
+"scripts": {
+  "dev": "next dev --webpack -p 3001 -H localhost",
+  "build": "next build",
+  "start": "next start -p 3001",
+  "lint": "next lint"
+},
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",
     "@supabase/supabase-js": "^2.105.4",

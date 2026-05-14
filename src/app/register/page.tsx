@@ -44,29 +44,19 @@ export default function RegisterPage() {
 
   const { showToast } = useAppStore();
 
-  // Fetch Coupang Products based on first place name
-  const fetchCoupangByPlace = React.useCallback(async (places: any[]) => {
-    if (!places || places.length === 0) return;
-    // 첫 번째 장소의 이름이나 카테고리로 검색
-    const firstPlace = places[0];
-    let keyword = firstPlace.place_name || '';
-    // 장소명이 너무 짧거나 미상이면 카테고리로 검색
-    if (!keyword || keyword.includes('미상') || keyword.length < 2) {
-      keyword = firstPlace.category || '맛집추천';
-    }
-    try {
-      const res = await fetch(`/api/coupang?keyword=${encodeURIComponent(keyword)}`);
-      const data = await res.json();
-      if (data.products) setCoupangProducts(data.products);
-    } catch (err) {
-      console.error('Coupang fetch error:', err);
-    }
+  // 초기 로딩 시 기본 쿠팡 상품 조회
+  React.useEffect(() => {
+    fetch('/api/coupang?keyword=맛집추천')
+      .then(r => r.json())
+      .then(data => { if (data.products?.length) setCoupangProducts(data.products); })
+      .catch(() => {});
   }, []);
 
   const handleAnalyze = async () => {
     if (!url) return;
     setLoading(true);
     setResult(null);
+    setCoupangProducts([]);
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -85,8 +75,18 @@ export default function RegisterPage() {
       
       if (!response.ok || data.error) throw new Error(data.error || '알 수 없는 서버 에러');
       setResult(data);
-      // 분석 결과에 따라 쿠팡 상품 검색
-      fetchCoupangByPlace(data.places);
+      // 분석 결과에 따라 쿠팡 상품 검색 (장소 정보 활용)
+      if (data.places?.length) {
+        const firstPlace = data.places[0];
+        let keyword = firstPlace.place_name || '';
+        if (!keyword || keyword.includes('미상') || keyword.length < 2) {
+          keyword = firstPlace.category || '맛집추천';
+        }
+        fetch(`/api/coupang?keyword=${encodeURIComponent(keyword)}`)
+          .then(r => r.json())
+          .then(d => { if (d.products?.length) setCoupangProducts(d.products); })
+          .catch(() => {});
+      }
       showToast('분석이 완료되었습니다.', 'success');
     } catch (error: any) {
       console.error('Analysis failed:', error);
