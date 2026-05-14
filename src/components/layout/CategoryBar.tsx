@@ -1,24 +1,18 @@
 'use client';
 
+import { CATEGORIES, getCategoryIcon } from '@/lib/categories';
 import { useAppStore } from '@/lib/store';
 import { motion } from 'framer-motion';
 
-const categories = [
-  { id: 'all', label: '전체', icon: '🌈' },
-  { id: 'food', label: '맛집', icon: '🍕' },
-  { id: 'cafe', label: '카페', icon: '☕' },
-  { id: 'camping', label: '캠핑', icon: '⛺' },
-  { id: 'fishing', label: '낚시', icon: '🎣' },
-  { id: 'travel', label: '여행', icon: '✈️' },
-  { id: 'accommodation', label: '숙소', icon: '🏨' },
-];
+const ALL_ITEM = { id: 'all', label: '전체', icon: '🌈' as const };
+const categoryItems = [ALL_ITEM, ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: getCategoryIcon(c.id) as string }))];
 
 export default function CategoryBar() {
   const { selectedCategory, setSelectedCategory } = useAppStore();
 
   return (
     <nav className="flex gap-2 overflow-x-auto py-1 custom-scrollbar px-2 items-center no-scrollbar">
-      {categories.map((c) => (
+      {categoryItems.map((c) => (
         <motion.button
           key={c.id}
           whileHover={{ y: -1 }}
@@ -36,10 +30,10 @@ export default function CategoryBar() {
             {c.icon}
           </span>
           <span className="tracking-tight uppercase">{c.label}</span>
-          
+
           {/* Subtle Indicator */}
           {selectedCategory === c.id && (
-            <motion.div 
+            <motion.div
               layoutId="glow"
               className="absolute inset-0 bg-emerald-500 rounded-xl -z-10 blur-md opacity-20"
             />

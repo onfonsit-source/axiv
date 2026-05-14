@@ -5,7 +5,187 @@ import { supabase } from '@/lib/supabaseClient';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Phone, MapPin, ShoppingBag, Clock, Play, ChevronLeft, Info, Star } from 'lucide-react';
+import { Phone, MapPin, ShoppingBag, Clock, Play, ChevronLeft, Info, Star, ExternalLink, UtensilsCrossed, ShoppingCart, Hotel, Tent } from 'lucide-react';
+import { CATEGORIES, getCategoryLabel } from '@/lib/categories';
+
+// ── Affiliate Section ──
+const AFFILIATE_LINKS: Record<string, { href: string; label: string; icon: React.ElementType; subLabel: string }[]> = {
+  food: [
+    { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '이 지역 맛집 투어', icon: UtensilsCrossed, subLabel: '아고다 숙소 + 식사 패키지' },
+    { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '주변 호텔 · 숙소', icon: Hotel, subLabel: '최대 70% 할인' },
+  ],
+  cafe: [
+    { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '이 주변 숙소 예약', icon: Hotel, subLabel: '아고다 최저가 보장' },
+    { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '인기 카페 · 디저트', icon: ShoppingCart, subLabel: '여행 상품 보기' },
+  ],
+  camping: [
+    { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '캠핑 · 레저 상품', icon: Tent, subLabel: '글램핑, 캠핑장 예약' },
+    { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '근처 숙소 찾기', icon: Hotel, subLabel: '캠핑장 · 펜션' },
+  ],
+  fishing: [
+    { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '낚시 · 레포츠', icon: Tent, subLabel: '낚시 투어, 장비' },
+    { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '주변 숙박', icon: Hotel, subLabel: '민박 · 펜션' },
+  ],
+  travel: [
+    { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '여행 상품 보기', icon: ShoppingCart, subLabel: '호텔 · 투어 · 액티비티' },
+    { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '아고다 숙소 예약', icon: Hotel, subLabel: '전 세계 숙소 최저가' },
+  ],
+  accommodation: [
+    { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '아고다에서 예약', icon: Hotel, subLabel: '이 숙소 최저가 확인' },
+    { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '비교 · 더보기', icon: ShoppingCart, subLabel: '다양한 숙소 한 번에' },
+  ],
+};
+
+const DEFAULT_LINKS = [
+  { href: 'https://lpweb.kr/click.php?m=hcombine2&a=A100704609&l=0000', label: '주변 여행 상품', icon: ShoppingCart, subLabel: '호텔 · 액티비티' },
+  { href: 'https://linkmoa.kr/click.php?m=agoda&a=A100704609&l=0000', label: '숙소 예약', icon: Hotel, subLabel: '아고다 최저가' },
+];
+
+/** 카테고리별 쿠팡 검색 키워드 */
+const COUPANG_KEYWORDS: Record<string, string> = {
+  food: '맛집 키친 용품 주방',
+  cafe: '커피 디저트 카페',
+  camping: '캠핑 용품 텐트',
+  fishing: '낚시 용품 레저',
+  travel: '여행 캐리어 가방',
+  accommodation: '호텔 숙박 여행',
+};
+
+function CoupangProductCard({ product }: { product: any }) {
+  return (
+    <a
+      href={product.productUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/50 hover:border-emerald-200 dark:hover:border-emerald-700/50 hover:shadow-md transition-all group shrink-0"
+      style={{ minWidth: 0 }}
+    >
+      {/* 상품 이미지 */}
+      <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0">
+        {product.productImage ? (
+          <img
+            src={product.productImage}
+            alt={product.productName}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-300 text-lg">🛒</div>
+        )}
+      </div>
+      {/* 상품 정보 */}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-slate-900 dark:text-white truncate leading-snug group-hover:text-emerald-600 transition-colors">
+          {product.productName}
+        </p>
+        {product.productPrice && (
+          <p className="text-sm font-black text-rose-500 mt-1">
+            {Number(product.productPrice).toLocaleString()}원
+          </p>
+        )}
+        {product.isRocket && (
+          <span className="text-[8px] font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded mt-1 inline-block">
+            로켓배송
+          </span>
+        )}
+      </div>
+    </a>
+  );
+}
+
+function AffiliateSection({ category, placeName }: { category: string; placeName?: string }) {
+  const links = AFFILIATE_LINKS[category] || DEFAULT_LINKS;
+  const [coupangProducts, setCoupangProducts] = useState<any[]>([]);
+  const [coupangLoading, setCoupangLoading] = useState(true);
+
+  useEffect(() => {
+    const keyword = COUPANG_KEYWORDS[category] || '맛집 추천';
+    const fetchCoupang = async () => {
+      try {
+        const res = await fetch(`/api/coupang?keyword=${encodeURIComponent(keyword)}&limit=4`);
+        const data = await res.json();
+        setCoupangProducts((data.products || []).slice(0, 4));
+      } catch {
+        setCoupangProducts([]);
+      } finally {
+        setCoupangLoading(false);
+      }
+    };
+    fetchCoupang();
+  }, [category]);
+
+  return (
+    <div className="space-y-6">
+      {/* ── 쿠팡 상품 섹션 ── */}
+      {!coupangLoading && coupangProducts.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-2 h-8 bg-rose-500 rounded-full" />
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                관련 상품
+              </h2>
+              <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                {placeName && `${placeName} `}연관 쿠팡 상품
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {coupangProducts.map((product: any, idx: number) => (
+              <CoupangProductCard key={product.productId || idx} product={product} />
+            ))}
+          </div>
+
+          <p className="text-[9px] text-slate-300 mt-4 text-center">
+            파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.
+          </p>
+        </div>
+      )}
+      {/* ── 제휴 링크 섹션 ── */}
+      <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-2 h-8 bg-amber-500 rounded-full" />
+          <div>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+              관련 상품 · 여행 정보
+            </h2>
+            <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+              {placeName && `${placeName} `}주변 상품을 둘러보세요
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {links.map((link, idx) => {
+            const Icon = link.icon;
+            return (
+              <a
+                key={idx}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 hover:bg-amber-50 dark:hover:bg-amber-900/10 border border-slate-100 dark:border-slate-700/50 hover:border-amber-200 dark:hover:border-amber-700/50 transition-all group"
+              >
+                <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/20 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                  <Icon className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-amber-600 transition-colors">{link.label}</p>
+                  <p className="text-[10px] font-medium text-slate-400">{link.subLabel}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors shrink-0" />
+              </a>
+            );
+          })}
+        </div>
+
+        <p className="text-[9px] text-slate-300 mt-4 text-center">
+          파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function PlaceDetailPage() {
   const { id } = useParams();
@@ -188,11 +368,11 @@ export default function PlaceDetailPage() {
                     onChange={(e) => setEditData({...editData, category: e.target.value})}
                     className="bg-emerald-600 text-white border-none outline-none text-[10px] font-black"
                    >
-                     <option value="food">FOOD</option>
-                     <option value="cafe">CAFE</option>
-                     <option value="travel">TRAVEL</option>
+                     {CATEGORIES.map((cat) => (
+                       <option key={cat.id} value={cat.id}>{cat.label}</option>
+                     ))}
                    </select>
-                ) : place.category}
+                ) : getCategoryLabel(place.category || '')}
               </div>
               {isEditing ? (
                 <input 
@@ -297,7 +477,6 @@ export default function PlaceDetailPage() {
 
 
 
-
                 {/* DB 정보를 그대로 보여주기 위해 summary 컬럼 활용 */}
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0">
@@ -322,8 +501,8 @@ export default function PlaceDetailPage() {
                 </div>
 
 
-                <div className="pt-6 border-t border-slate-50 dark:border-slate-800">
-                   <a 
+                <div className="pt-6 border-t border-slate-50 dark:border-slate-800 hidden">
+                   <a
                     href={`https://map.naver.com/v5/search/${encodeURIComponent(place.place_name + ' ' + place.address)}`}
                     target="_blank"
                     className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3 active:scale-95"
@@ -391,6 +570,12 @@ export default function PlaceDetailPage() {
           </div>
 
         </div>
+
+        {/* ── Partner Links Section ── */}
+        <div className="mt-12 mb-8">
+          <AffiliateSection category={place.category || ''} placeName={place.place_name} />
+        </div>
+
       </div>
     </div>
   );

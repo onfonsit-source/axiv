@@ -42,19 +42,26 @@ export default function RegisterPage() {
   const [successItems, setSuccessItems] = useState<string[]>([]);
   const [coupangProducts, setCoupangProducts] = useState<any[]>([]);
 
-  // Fetch Coupang Products when loading starts
-  React.useEffect(() => {
-    if (loading && !result) {
-      fetch('/api/coupang')
-        .then(res => res.json())
-        .then(data => {
-          if (data.data) setCoupangProducts(data.data);
-        })
-        .catch(err => console.error('Coupang fetch error:', err));
-    }
-  }, [loading, result]);
-
   const { showToast } = useAppStore();
+
+  // Fetch Coupang Products based on first place name
+  const fetchCoupangByPlace = React.useCallback(async (places: any[]) => {
+    if (!places || places.length === 0) return;
+    // 첫 번째 장소의 이름이나 카테고리로 검색
+    const firstPlace = places[0];
+    let keyword = firstPlace.place_name || '';
+    // 장소명이 너무 짧거나 미상이면 카테고리로 검색
+    if (!keyword || keyword.includes('미상') || keyword.length < 2) {
+      keyword = firstPlace.category || '맛집추천';
+    }
+    try {
+      const res = await fetch(`/api/coupang?keyword=${encodeURIComponent(keyword)}`);
+      const data = await res.json();
+      if (data.products) setCoupangProducts(data.products);
+    } catch (err) {
+      console.error('Coupang fetch error:', err);
+    }
+  }, []);
 
   const handleAnalyze = async () => {
     if (!url) return;
@@ -78,6 +85,8 @@ export default function RegisterPage() {
       
       if (!response.ok || data.error) throw new Error(data.error || '알 수 없는 서버 에러');
       setResult(data);
+      // 분석 결과에 따라 쿠팡 상품 검색
+      fetchCoupangByPlace(data.places);
       showToast('분석이 완료되었습니다.', 'success');
     } catch (error: any) {
       console.error('Analysis failed:', error);
@@ -138,7 +147,12 @@ export default function RegisterPage() {
             category: place.category,
             lat: place.lat,
             lng: place.lng,
-            phone: place.phone
+            phone: place.phone,
+            business_hours: place.business_hours || null,
+            representative_menu: place.menu_with_prices || null,
+            place_description: place.place_description || null,
+            waiting_tip: place.waiting_tip || null,
+            parking_info: place.parking_info || null
           }])
           .select()
           .single();
@@ -397,8 +411,50 @@ ${place.summary || ''}
               </div>
             </motion.div>
           )}
-        </AnimatePresence>
 
+          {/* Coupang Products (after analysis) */}
+          {result && coupangProducts.length > 0 && (
+            <div className="space-y-4 pt-2 pb-8">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                  🛒 관련 상품
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium">파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                {coupangProducts.map((product, idx) => (
+                  <a
+                    key={idx}
+                    href={product.productUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 w-[180px] snap-center bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 hover:shadow-lg hover:-translate-y-0.5 transition-all group"
+                  >
+                    <div className="relative aspect-square bg-slate-50 dark:bg-slate-800">
+                      <Image 
+                        src={product.productImage} 
+                        alt={product.productName}
+                        fill
+                        className="object-cover transition-transform group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="p-3 space-y-1.5">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug">{product.productName}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                          {product.productPrice?.toLocaleString()}원
+                        </span>
+                        <span className="text-[10px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                          구매
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </div>
 

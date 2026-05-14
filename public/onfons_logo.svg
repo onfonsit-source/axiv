@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" width="900" height="220">
+  <defs>
+    <style>
+      .brand    { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 700; font-size: 160px; fill: #111827; letter-spacing: -3px; }
+      .orb-line { fill: none; stroke-linecap: round; }
+      .ring1    { fill: none; stroke: #10b981; stroke-width: 1.4; opacity: 0.6; }
+      .ring2    { fill: none; stroke: #6366f1; stroke-width: 1.4; opacity: 0.6; }
+      .ring3    { fill: none; stroke: #0ea5e9; stroke-width: 1.1; opacity: 0.5; }
+      .l1  { stroke: #6366f1; stroke-width: 1.6; opacity: 0.8; }
+      .l2  { stroke: #10b981; stroke-width: 1.6; opacity: 0.8; }
+      .l3  { stroke: #0ea5e9; stroke-width: 1.6; opacity: 0.75; }
+      .l4  { stroke: #6366f1; stroke-width: 1.6; opacity: 0.75; }
+      .l5  { stroke: #10b981; stroke-width: 1.6; opacity: 0.8; }
+      .l6  { stroke: #0ea5e9; stroke-width: 1.6; opacity: 0.8; }
+      .lx1 { stroke: #10b981; stroke-width: 1; opacity: 0.4; }
+      .lx2 { stroke: #6366f1; stroke-width: 1; opacity: 0.4; }
+      .lc1 { stroke: #0ea5e9; stroke-width: 1; opacity: 0.48; }
+      .lc2 { stroke: #10b981; stroke-width: 1; opacity: 0.48; }
+      .lc3 { stroke: #6366f1; stroke-width: 1; opacity: 0.48; }
+      .n-center { fill: #0ea5e9; }
+      .n-green  { fill: #10b981; }
+      .n-indigo { fill: #6366f1; }
+      .n-sky    { fill: #0ea5e9; }
+      .n-purple { fill: #a855f7; }
+      .n-white  { fill: #ffffff; }
+      .u-stroke   { stroke: #d1d5db; stroke-width: 1; fill: none; }
+      .dot-purple { fill: #a855f7; }
+      .dot-green  { fill: #10b981; }
+      @media (prefers-color-scheme: dark) {
+        .brand      { fill: #f1f5f9; }
+        .ring1      { stroke: #34d399; opacity: 0.4; }
+        .ring2      { stroke: #818cf8; opacity: 0.4; }
+        .ring3      { stroke: #38bdf8; opacity: 0.3; }
+        .l1  { stroke: #818cf8; opacity: 0.65; }
+        .l2  { stroke: #34d399; opacity: 0.65; }
+        .l3  { stroke: #38bdf8; opacity: 0.6; }
+        .l4  { stroke: #818cf8; opacity: 0.6; }
+        .l5  { stroke: #34d399; opacity: 0.65; }
+        .l6  { stroke: #38bdf8; opacity: 0.65; }
+        .lx1 { stroke: #34d399; opacity: 0.32; }
+        .lx2 { stroke: #818cf8; opacity: 0.32; }
+        .lc1 { stroke: #38bdf8; opacity: 0.42; }
+        .lc2 { stroke: #34d399; opacity: 0.42; }
+        .lc3 { stroke: #818cf8; opacity: 0.42; }
+        .n-center { fill: #38bdf8; }
+        .n-green  { fill: #34d399; }
+        .n-indigo { fill: #818cf8; }
+        .n-sky    { fill: #38bdf8; }
+        .n-purple { fill: #c084fc; }
+        .n-white  { fill: #1e293b; }
+        .u-stroke   { stroke: #334155; }
+        .dot-purple { fill: #c084fc; }
+        .dot-green  { fill: #34d399; }
+      }
+    </style>
+  </defs>
+
+  <!-- Orbit rings -->
+  <ellipse cx="110" cy="110" rx="90" ry="35" class="ring1" transform="rotate(-30 110 110)"/>
+  <ellipse cx="110" cy="110" rx="90" ry="35" class="ring2" transform="rotate(50 110 110)"/>
+  <ellipse cx="110" cy="110" rx="90" ry="35" class="ring3" transform="rotate(100 110 110)"/>
+
+  <!-- Outer connection lines -->
+  <line x1="110" y1="18"  x2="188" y2="60"  class="orb-line l1"/>
+  <line x1="110" y1="18"  x2="34"  y2="62"  class="orb-line l2"/>
+  <line x1="188" y1="60"  x2="168" y2="158" class="orb-line l3"/>
+  <line x1="34"  y1="62"  x2="54"  y2="158" class="orb-line l4"/>
+  <line x1="168" y1="158" x2="110" y2="198" class="orb-line l5"/>
+  <line x1="54"  y1="158" x2="110" y2="198" class="orb-line l6"/>
+  <line x1="188" y1="60"  x2="54"  y2="158" class="orb-line lx1"/>
+  <line x1="34"  y1="62"  x2="168" y2="158" class="orb-line lx2"/>
+
+  <!-- Center to outer lines -->
+  <line x1="110" y1="110" x2="110" y2="18"  class="orb-line lc1"/>
+  <line x1="110" y1="110" x2="188" y2="60"  class="orb-line lc2"/>
+  <line x1="110" y1="110" x2="168" y2="158" class="orb-line lc3"/>
+  <line x1="110" y1="110" x2="54"  y2="158" class="orb-line lc1"/>
+  <line x1="110" y1="110" x2="34"  y2="62"  class="orb-line lc2"/>
+  <line x1="110" y1="110" x2="110" y2="198" class="orb-line lc3"/>
+
+  <!-- Center node -->
+  <circle cx="110" cy="110" r="11"  class="n-center"/>
+  <circle cx="110" cy="110" r="5.5" class="n-white"/>
+
+  <!-- Outer nodes -->
+  <circle cx="110" cy="18"  r="8"   class="n-green"/>
+  <circle cx="110" cy="18"  r="4"   class="n-white"/>
+  <circle cx="188" cy="60"  r="7"   class="n-indigo"/>
+  <circle cx="188" cy="60"  r="3.5" class="n-white"/>
+  <circle cx="168" cy="158" r="7"   class="n-sky"/>
+  <circle cx="168" cy="158" r="3.5" class="n-white"/>
+  <circle cx="110" cy="198" r="8"   class="n-purple"/>
+  <circle cx="110" cy="198" r="4"   class="n-white"/>
+  <circle cx="54"  cy="158" r="7"   class="n-green"/>
+  <circle cx="54"  cy="158" r="3.5" class="n-white"/>
+  <circle cx="34"  cy="62"  r="7"   class="n-indigo"/>
+  <circle cx="34"  cy="62"  r="3.5" class="n-white"/>
+
+  <!-- Small accent dots -->
+  <circle cx="62"  cy="34"  r="4" class="n-sky"    opacity="0.5"/>
+  <circle cx="156" cy="34"  r="4" class="n-green"  opacity="0.5"/>
+  <circle cx="70"  cy="182" r="4" class="n-indigo" opacity="0.5"/>
+  <circle cx="148" cy="182" r="4" class="n-purple" opacity="0.5"/>
+
+  <!-- Brand text -->
+  <text x="240" y="175" class="brand">OnFons</text>
+
+  <!-- Underline accent -->
+  <line x1="240" y1="195" x2="882" y2="195" class="u-stroke"/>
+  <circle cx="240" cy="195" r="4.5" class="dot-purple"/>
+  <circle cx="882" cy="195" r="4.5" class="dot-green"/>
+</svg>

@@ -1,63 +1,173 @@
+// /src/app/api/coupang/route.ts
+// 쿠팡 파트너스 API - HMAC-SHA256 서명 (공식 스펙 준수)
+// 장소 정보 기반 상품 검색 로직 적용 (axiv)
+
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-const ACCESS_KEY = process.env.COUPANG_ACCESS_KEY || "f33510e9-fd10-4cbe-9b34-b905c4db07cb";
-const SECRET_KEY = process.env.COUPANG_SECRET_KEY || "3167194fdcc9765cd85893d860c96b863ce3392c";
+const ACCESS_KEY = (process.env.COUPANG_ACCESS_KEY || '').trim();
+const SECRET_KEY = (process.env.COUPANG_SECRET_KEY || '').trim();
 
-function generateHmac(method: string, path: string, secretKey: string, accessKey: string) {
-  // 가이드에서 제공한 YYMMDDTHHMMSSZ 형식
+/**
+ * 쿠팡 파트너스 공식 HMAC-SHA256 서명 생성
+ */
+function makeAuthorization(method: string, path: string, query: string): { auth: string; datetime: string } {
   const now = new Date();
-  const datetime = now.toISOString().replace(/[-:]/g, '').split('.')[0].substring(2) + 'Z';
+  const year = String(now.getUTCFullYear()).slice(2);
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const hours = String(now.getUTCHours()).padStart(2, '0');
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(now.getUTCSeconds()).padStart(2, '0');
   
-  const message = datetime + method + path;
-  const signature = crypto.createHmac('sha256', secretKey).update(message).digest('hex');
-  
-  return `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+  const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  const message = datetime + method + path + (query ? `?${query}` : '');
+
+  const signature = crypto
+    .createHmac('sha256', SECRET_KEY)
+    .update(message)
+    .digest('hex');
+
+  const auth = `CEA algorithm=HmacSHA256, access-key=${ACCESS_KEY}, signed-date=${datetime}, signature=${signature}`;
+  return { auth, datetime };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!ACCESS_KEY || !SECRET_KEY) {
-    return NextResponse.json({ error: 'Coupang API keys not configured' }, { status: 500 });
+    console.error('[Coupang] 환경변수 누락');
+    return NextResponse.json({ products: [] });
   }
 
-  const DOMAIN = 'https://api-gateway.coupang.com';
-  const PATH = '/v2/providers/affiliate_open_api/apis/openapi/v2/products/reco';
+  const { searchParams } = new URL(req.url);
+  const keyword = searchParams.get('keyword') || '';
 
-  const requestBody = {
-    "site": {
-      "id": "1",
-      "domain": "blog.naver.com" 
-    },
-    "device": {
-      "id": "32chars_random_device_id_12345", 
-      "lmt": 0
-    },
-    "imp": {
-      "imageSize": "300x300"
-    },
-    "user": {
-      "puid": "fonsinfo"
+  // ── 1. 키워드가 있으면 검색 API 우선 (공식 경로) ──
+  if (keyword) {
+    try {
+      const apiPath = '/v2/providers/affiliate_open_api/apis/openapi/products/search';
+      const query = `keyword=${encodeURIComponent(keyword)}&limit=5`;
+      const method = 'GET';
+      const { auth } = makeAuthorization(method, apiPath, query);
+      const url = `https://api-gateway.coupang.com${apiPath}?${query}`;
+
+      console.log(`[Coupang] 키워드 검색: "${keyword}"`);
+
+      const res = await fetch(url, {
+        method,
+        headers: { 
+          'Authorization': auth,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.data || [];
+        const products = (Array.isArray(raw) ? raw.slice(0, 5) : []).map((p: any) => ({
+          productId:    p.productId,
+          productName:  p.productName,
+          productPrice: p.productPrice,
+          productImage: p.productImage,
+          productUrl:   p.productUrl,
+          isRocket:     p.isRocket || false,
+        }));
+        if (products.length > 0) {
+          console.log(`[Coupang] 검색 결과 ${products.length}개`);
+          return NextResponse.json({ products });
+        }
+      } else {
+        const errText = await res.text();
+        console.warn(`[Coupang] 검색 실패 (${res.status}): ${errText.substring(0, 200)}`);
+      }
+    } catch (e: any) {
+      console.error('[Coupang] 검색 중 에러:', e.message);
     }
-  };
+  }
 
+  // ── 2. 추천 상품(reco) 조회 ──
   try {
-    const authorization = generateHmac('POST', PATH, SECRET_KEY, ACCESS_KEY);
-    
-    const response = await fetch(DOMAIN + PATH, {
-      method: 'POST', // 가이드에 따라 POST 사용
-      headers: {
-        'Authorization': authorization,
-        'Content-Type': 'application/json'
+    const apiPath = '/v2/providers/affiliate_open_api/apis/openapi/v2/products/reco';
+    const method = 'POST';
+    const { auth } = makeAuthorization(method, apiPath, '');
+    const url = `https://api-gateway.coupang.com${apiPath}`;
+
+    const requestBody = {
+      "site": { "id": "1", "domain": "blog.naver.com" },
+      "device": { "id": "32chars_random_device_id_12345", "lmt": 0 },
+      "imp": { "imageSize": "300x300" },
+      "user": { "puid": "fonsinfo" },
+    };
+
+    console.log('[Coupang] 추천 상품 요청');
+
+    const res = await fetch(url, {
+      method,
+      headers: { 
+        'Authorization': auth,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(5000),
     });
 
-    const data = await response.json();
-    
-    // API 응답 구조에 맞게 데이터 가공 (data.data에 배열이 들어있을 것으로 예상)
-    return NextResponse.json(data);
-  } catch (error: any) {
-    console.error('Coupang API Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (res.ok) {
+      const data = await res.json();
+      let raw = data.data || [];
+      if (!Array.isArray(raw)) {
+        if (raw.productData && Array.isArray(raw.productData)) raw = raw.productData;
+        else if (raw.products && Array.isArray(raw.products)) raw = raw.products;
+        else raw = Object.values(raw).find((v) => Array.isArray(v)) || [];
+      }
+      const products = (Array.isArray(raw) ? raw.slice(0, 5) : []).map((p: any) => ({
+        productId:    p.productId,
+        productName:  p.productName,
+        productPrice: p.productPrice,
+        productImage: p.productImage,
+        productUrl:   p.productUrl,
+        isRocket:     p.isRocket || false,
+      }));
+      console.log(`[Coupang] 추천 ${products.length}개`);
+      return NextResponse.json({ products });
+    }
+  } catch (e: any) {
+    console.error('[Coupang] 추천 에러:', e.message);
   }
+
+  // ── 3. 골드박스 fallback ──
+  try {
+    const apiPath = '/v2/providers/affiliate_open_api/apis/openapi/v1/products/goldbox';
+    const query = 'limit=5';
+    const { auth } = makeAuthorization('GET', apiPath, query);
+    const url = `https://api-gateway.coupang.com${apiPath}?${query}`;
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { 
+        'Authorization': auth,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data.data || [];
+      const products = raw.slice(0, 5).map((p: any) => ({
+        productId:    p.productId,
+        productName:  p.productName,
+        productPrice: p.productPrice,
+        productImage: p.productImage,
+        productUrl:   p.productUrl,
+        isRocket:     p.isRocket,
+      }));
+      console.log('[Coupang] 골드박스 fallback');
+      return NextResponse.json({ products });
+    }
+  } catch (e: any) {
+    console.error('[Coupang] 골드박스 에러:', e.message);
+  }
+
+  return NextResponse.json({ products: [] });
 }

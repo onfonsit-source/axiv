@@ -1,10 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import CategoryBar from '@/components/layout/CategoryBar';
-import SearchBar from '@/components/layout/SearchBar';
-import UserMenu from '@/components/layout/UserMenu';
 import MapContainer from '@/components/map/MapContainer';
 
 
@@ -15,13 +12,55 @@ import { List, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function MainPage() {
   const [places, setPlaces] = useState<any[]>([]);
+  const [mrtDataMap, setMrtDataMap] = useState<Record<string, any>>({});
   const { selectedCategory, searchQuery } = useAppStore();
   const [mapBounds, setMapBounds] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // MyRealTrip 데이터를 병렬로 가져오는 함수
+  const fetchMrtData = useCallback(async (placeList: any[]) => {
+    if (!placeList || placeList.length === 0) return;
+
+    const results: Record<string, any> = {};
+    const batchSize = 5; // 한 번에 5개씩만 (API rate limit)
+
+    for (let i = 0; i < placeList.length; i += batchSize) {
+      const batch = placeList.slice(i, i + batchSize);
+      const promises = batch.map(async (place) => {
+        // 장소명이나 주소로 MyRealTrip 검색
+        const keyword = place.place_name || place.address || '';
+        if (!keyword || keyword.length < 2) return;
+
+        try {
+          const params = new URLSearchParams({ q: keyword });
+          // 좌표가 있으면 위치 기반 검색 추가
+          if (place.lat && place.lng) {
+            params.set('lat', place.lat.toString());
+            params.set('lng', place.lng.toString());
+          }
+
+          const res = await fetch(`/api/myrealtrip?${params.toString()}`);
+          const data = await res.json();
+          if (data.places && data.places.length > 0) {
+            results[place.id] = data.places[0]; // 첫 번째 결과 사용
+          }
+        } catch (err) {
+          console.error(`MRT fetch error for ${keyword}:`, err);
+        }
+      });
+
+      await Promise.all(promises);
+      // batch 사이에 잠시 대기 (rate limit 회피)
+      if (i + batchSize < placeList.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+
+    setMrtDataMap(prev => ({ ...prev, ...results }));
+  }, []);
+
   useEffect(() => {
     const fetchPlaces = async () => {
-      // 기본적인 데이터 가져오기 (필터는 클라이언트 측에서 처리하여 에러 방지)
       let query = supabase.from('places').select(`
         *,
         content_places (
@@ -48,10 +87,10 @@ export default function MainPage() {
         return;
       }
 
-      // 클라이언트 측 통합 검색 필터링 (상호명, 주소, 유튜버 이름)
+      let filtered = data || [];
       if (searchQuery) {
-        const filtered = (data || []).filter(place => {
-          const lowerQuery = searchQuery.toLowerCase();
+        const lowerQuery = searchQuery.toLowerCase();
+        filtered = filtered.filter((place: any) => {
           const matchesName = place.place_name?.toLowerCase().includes(lowerQuery);
           const matchesAddress = place.address?.toLowerCase().includes(lowerQuery);
           const matchesCreator = place.content_places?.some((cp: any) => 
@@ -59,23 +98,20 @@ export default function MainPage() {
           );
           return matchesName || matchesAddress || matchesCreator;
         });
-        setPlaces(filtered);
-      } else {
-        setPlaces(data || []);
       }
+
+      setPlaces(filtered);
+      // MyRealTrip 데이터 병렬 조회
+      fetchMrtData(filtered);
     };
     fetchPlaces();
-  }, [selectedCategory, searchQuery, mapBounds]);
+  }, [selectedCategory, searchQuery, mapBounds, fetchMrtData]);
 
 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       
       {/* Header is handled globally in layout.tsx */}
-
-
-
-
 
       <div className="flex flex-1 h-full relative overflow-hidden">
         
@@ -90,7 +126,6 @@ export default function MainPage() {
               className="absolute md:relative bottom-0 left-0 right-0 md:right-auto w-full md:w-[400px] h-[60vh] md:h-full bg-white dark:bg-slate-950 z-[80] shadow-2xl md:shadow-none border-r border-slate-100 dark:border-slate-900 flex flex-col"
             >
               <div className="p-8 pb-4 mt-4">
-
 
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex flex-col">
@@ -116,7 +151,7 @@ export default function MainPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
                   >
-                    <PlaceCard place={place} />
+                    <PlaceCard place={place} mrtData={mrtDataMap[place.id]} />
                   </motion.div>
                 ))}
               </div>

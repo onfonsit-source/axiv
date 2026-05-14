@@ -3,9 +3,22 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { MapPin, Star, ChevronRight, Phone, Clock, ShoppingBag } from 'lucide-react';
+import { MapPin, Star, Phone, Clock, ShoppingBag } from 'lucide-react';
+import { getCategoryIcon, getCategoryLabel } from '@/lib/categories';
 
-
+type MrtData = {
+  name?: string;
+  image?: string;
+  rating?: number;
+  reviewCount?: number;
+  address?: string;
+  phone?: string;
+  url?: string;
+  price?: number;
+  originalPrice?: number;
+  description?: string;
+  category?: string;
+};
 
 type Place = {
   id: string;
@@ -18,23 +31,21 @@ type Place = {
   phone?: string;
   representative_menu?: string;
   business_hours?: string;
+  place_description?: string;
+  waiting_tip?: string;
+  parking_info?: string;
+  lat?: number;
+  lng?: number;
 };
 
+const defaultThumb = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200&q=80';
 
-const categoryIcons: Record<string, string> = {
-  food: '🍕',
-  cafe: '☕',
-  camping: '⛺',
-  fishing: '🎣',
-  travel: '✈️',
-  hiking: '🥾',
-  sightseeing: '🏛️',
-  accommodation: '🏨',
-};
-
-export default function PlaceCard({ place }: { place: Place }) {
+export default function PlaceCard({ place, mrtData }: { place: Place; mrtData?: MrtData | null }) {
   const displayTitle = place.place_name || place.title;
-  
+  const hasMrt = mrtData && (mrtData.rating || mrtData.price || mrtData.description);
+  const hasWaiting = place.waiting_tip && place.waiting_tip !== '없음' && place.waiting_tip !== '정보 없음';
+  const hasParking = place.parking_info && place.parking_info !== '없음' && place.parking_info !== '정보 없음';
+
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -43,67 +54,91 @@ export default function PlaceCard({ place }: { place: Place }) {
     >
       <Link href={`/place/${place.id}`} className="block">
         <div className="flex gap-4 p-4 rounded-[24px] bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 border border-slate-100 dark:border-slate-800 transition-all duration-300 shadow-sm hover:shadow-md">
-          
-          {/* Compact Thumbnail for Mobile */}
-          <div className="relative w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-2xl overflow-hidden shadow-inner bg-slate-100 dark:bg-slate-800">
-            {place.thumbnail_url ? (
+
+          {/* Thumbnail */}
+          <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-[16px] overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-800">
+            {(place.thumbnail_url || mrtData?.image) ? (
               <Image
-                src={place.thumbnail_url}
-                alt={displayTitle || 'place'}
+                src={place.thumbnail_url || mrtData?.image || defaultThumb}
+                alt={displayTitle || ''}
                 fill
-                className="object-cover"
+                className="object-cover transition-all duration-300 group-hover:scale-110"
+                sizes="96px"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">
-                {categoryIcons[place.category || ''] || '📍'}
+              <div className="w-full h-full flex items-center justify-center text-2xl">
+                {getCategoryIcon(place.category || '')}
               </div>
             )}
           </div>
 
-          {/* Professional Content */}
-          <div className="flex flex-col justify-center flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-[9px] font-black uppercase text-emerald-500 tracking-widest">{place.category}</span>
-              <div className="w-1 h-1 rounded-full bg-slate-200 dark:bg-slate-700" />
-              <div className="flex items-center gap-0.5">
-                <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
-                <span className="text-[9px] font-black text-slate-400">{place.rating || 4.5}</span>
-              </div>
-            </div>
-            
-            <h3 className="text-base font-black text-slate-900 dark:text-white truncate mb-1 tracking-tight group-hover:text-emerald-500 transition-colors">
-              {displayTitle}
-            </h3>
-            
-            <div className="flex flex-col gap-1 mt-1">
-              <div className="flex items-center gap-1 text-slate-400">
-                <MapPin className="w-3 h-3 shrink-0 text-emerald-500/50" />
-                <p className="text-[10px] font-bold truncate tracking-tight">{place.address || '주소 정보 없음'}</p>
-              </div>
-              {place.phone && (
-                <div className="flex items-center gap-1 text-slate-400">
-                  <Phone className="w-3 h-3 shrink-0 text-emerald-500/50" />
-                  <p className="text-[10px] font-bold truncate tracking-tight">{place.phone}</p>
-                </div>
-              )}
-              {place.representative_menu && (
-                <div className="flex items-center gap-1 text-slate-400">
-                  <ShoppingBag className="w-3 h-3 shrink-0 text-emerald-500/50" />
-                  <p className="text-[10px] font-bold truncate tracking-tight line-clamp-1">{place.representative_menu}</p>
-                </div>
-              )}
-              {place.business_hours && (
-                <div className="flex items-center gap-1 text-slate-400">
-                  <Clock className="w-3 h-3 shrink-0 text-emerald-500/50" />
-                  <p className="text-[10px] font-bold truncate tracking-tight">{place.business_hours}</p>
-                </div>
+          {/* Content */}
+          <div className="flex-1 min-w-0 space-y-1.5">
+            {/* Title row */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                {getCategoryLabel(place.category || '')}
+              </span>
+              {hasMrt && mrtData?.rating && (
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md">
+                  <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                  {mrtData.rating.toFixed(1)}
+                </span>
               )}
             </div>
 
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-tight truncate">
+              {displayTitle}
+            </h3>
+
+            <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
+              <MapPin className="w-3 h-3 shrink-0" />
+              {place.address || '주소 정보 없음'}
+            </p>
+
+            {/* Business hours */}
+            {place.business_hours && (
+              <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                <Clock className="w-3 h-3 shrink-0" />
+                <span>{place.business_hours}</span>
+              </p>
+            )}
+
+            {/* Representative menu */}
+            {(place.representative_menu || mrtData?.price) && (
+              <p className="text-[10px] text-slate-500 flex items-start gap-1 line-clamp-1">
+                <ShoppingBag className="w-3 h-3 shrink-0 mt-0.5" />
+                {place.representative_menu && <span>{place.representative_menu}</span>}
+                {mrtData?.price && (
+                  <span className="text-emerald-500 font-semibold shrink-0">
+                    · {mrtData.price.toLocaleString()}원
+                  </span>
+                )}
+              </p>
+            )}
+
+            {/* Contact + waiting/parking badges */}
+            <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+              {place.phone && (
+                <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {place.phone}
+                </span>
+              )}
+              {hasWaiting && (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  웨이팅
+                </span>
+              )}
+              {hasParking && (
+                <span className="text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
+                  주차가능
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </Link>
     </motion.div>
   );
 }
-
