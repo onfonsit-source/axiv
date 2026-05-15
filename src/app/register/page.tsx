@@ -32,8 +32,10 @@ export default function RegisterPage() {
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        alert('로그인이 필요한 서비스입니다.');
-        router.push('/');
+        const { showConfirm } = useAppStore.getState();
+        showConfirm('로그인 필요', '로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.', () => {
+          router.push('/login');
+        });
       } else {
         setIsAuthChecking(false);
       }
@@ -90,9 +92,9 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
         console.error('Raw response:', responseText);
         // HTML 응답 (서버 에러 페이지) 처리
         if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
-          throw new Error(`서버에서 HTML 응답 반환 (${response.status}). FastAPI 서버가 중단되었을 수 있습니다.`);
+          throw new Error(`서버 응답 오류 (${response.status}). 잠시 후 다시 시도해 주세요.`);
         }
-        throw new Error(`서버 응답 파싱 실패 (상태 코드: ${response.status}): ${responseText.substring(0, 100)}`);
+        throw new Error(`서버 응답 처리 중 오류가 발생했습니다. (${response.status}) 다시 시도해 주세요.`);
       }
       
       if (!response.ok || data.error) throw new Error(data.error || '알 수 없는 서버 에러');
@@ -224,7 +226,7 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
       showToast(`${place.place_name} 등록 성공!`, 'success');
     } catch (error: any) {
       console.error('Save error detailed:', error);
-      showToast(`저장 실패: ${error.message || JSON.stringify(error)}`, 'error');
+      showToast(`저장 실패: ${error.message || '알 수 없는 오류입니다. 다시 시도해 주세요.'}`, 'error');
     } finally {
       setLoading(false);
       setSavingIndex(null);
@@ -323,9 +325,12 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
                             <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{place.category}</span>
                             <span className="text-[9px] font-bold text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">Verified</span>
                           </div>
-                          <h3 className="text-xl font-black text-slate-900 dark:text-white leading-tight group-hover:text-emerald-500 transition-colors">
-                            {place.place_name}
-                          </h3>
+                          <input
+                            value={place.place_name || ''}
+                            onChange={(e) => handlePlaceChange(index, 'place_name', e.target.value)}
+                            className="w-full mt-1 text-xl font-black text-slate-900 dark:text-white bg-transparent border-0 border-b-2 border-transparent focus:border-emerald-500/50 focus:outline-none transition-colors hover:border-slate-200 dark:hover:border-slate-700"
+                            placeholder="상호명을 입력하세요"
+                          />
                         </div>
                         <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg">
                           <Clock className="w-3 h-3" />
@@ -568,7 +573,7 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
                 transition={{ duration: 2, repeat: Infinity }}
                 className="text-center text-[10px] text-slate-500 font-medium"
               >
-                영상이 길 경우 최대 2분 정도 소요될 수 있습니다.
+                영상이 길 경우 최대 3분 정도 소요될 수 있습니다.
               </motion.p>
             </div>
           </motion.div>
