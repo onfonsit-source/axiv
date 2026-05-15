@@ -4,8 +4,10 @@ import { GoogleMap, LoadScriptNext, Marker, Circle, OverlayView } from '@react-g
 
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Phone, Clock, X, Navigation } from 'lucide-react';
+import { Play, Phone, Clock, X, Navigation, Heart } from 'lucide-react';
 import { getCategoryColor } from '@/lib/categories';
+import { supabase } from '@/lib/supabaseClient';
+import { useAppStore } from '@/lib/store';
 
 
 const containerStyle = {
@@ -76,6 +78,10 @@ function MapContainerImpl({ places }: MapProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY as string;
   const mapRef = useRef<google.maps.Map | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const { showToast } = useAppStore();
 
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const router = useRouter();
@@ -92,12 +98,51 @@ function MapContainerImpl({ places }: MapProps) {
         () => console.log('Geolocation failed')
       );
     }
+    // 현재 유저 정보 로드
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUser(data?.user ?? null);
+    });
   }, []);
 
   const handleCenterUser = () => {
     if (userLocation && mapRef.current) {
       mapRef.current.panTo(userLocation);
       mapRef.current.setZoom(15);
+    }
+  };
+
+  // selectedPlace 변경 시 즐겨찾기 상태 확인
+  useEffect(() => {
+    if (!selectedPlace || !currentUser) {
+      setIsFavorite(false);
+      return;
+    }
+    supabase.from('favorites').select('id').match({ user_id: currentUser.id, place_id: selectedPlace.id }).maybeSingle().then(({ data }) => {
+      setIsFavorite(!!data);
+    });
+  }, [selectedPlace, currentUser]);
+
+  const toggleFavorite = async () => {
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+    if (!selectedPlace) return;
+    setFavoriteLoading(true);
+    try {
+      if (isFavorite) {
+        await supabase.from('favorites').delete().match({ user_id: currentUser.id, place_id: selectedPlace.id });
+        setIsFavorite(false);
+        showToast('즐겨찾기가 해제되었습니다.', 'success');
+      } else {
+        await supabase.from('favorites').insert({ user_id: currentUser.id, place_id: selectedPlace.id });
+        setIsFavorite(true);
+        showToast('즐겨찾기에 추가되었습니다.', 'success');
+      }
+    } catch {
+      showToast('처리 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setFavoriteLoading(false);
     }
   };
 
@@ -258,16 +303,30 @@ function MapContainerImpl({ places }: MapProps) {
                     </div>
 
                     {/* CTA */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={toggleFavorite}
+                        disabled={favoriteLoading}
+                        className={`flex-1 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
+                          isFavorite
+                            ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+                        {isFavorite ? '즐겨찾기 완료' : '즐겨찾기'}
+                      </button>
                     <button
                       onClick={() => {
                         setSelectedPlace(null);
                         // 약간의 지연 후 페이지 이동 (Google Maps 정리 시간 확보)
                         setTimeout(() => router.push(`/place/${selectedPlace.id}`), 50);
                       }}
-                      className="w-full py-2.5 bg-emerald-500 text-white text-[11px] font-black rounded-xl hover:bg-emerald-600 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                      className="flex-[2] py-2.5 bg-emerald-500 text-white text-[11px] font-black rounded-xl hover:bg-emerald-600 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
                     >
                       상세보기
                     </button>
+                    </div>
                   </div>
                 </div>
               </div>

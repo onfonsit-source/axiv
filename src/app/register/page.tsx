@@ -72,7 +72,7 @@ export default function RegisterPage() {
     setLoading(true);
     setResult(null);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임아웃
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -102,7 +102,7 @@ export default function RegisterPage() {
     } catch (error: any) {
       console.error('Analysis failed:', error);
       if (error.name === 'AbortError') {
-        showToast('분석 시간이 초과되었습니다. (2분) 영상이 너무 긴 경우 다시 시도해주세요.', 'error');
+        showToast('분석 시간이 초과되었습니다. (3분) 영상이 너무 긴 경우 다시 시도해주세요.', 'error');
       } else {
         showToast(`분석 실패: ${error.message}`, 'error');
       }

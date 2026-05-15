@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabaseClient';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Phone, MapPin, ShoppingBag, Clock, Play, ChevronLeft, Info, Star, ExternalLink, UtensilsCrossed, ShoppingCart, Hotel, Tent } from 'lucide-react';
+import { Phone, MapPin, ShoppingBag, Clock, Play, ChevronLeft, Heart, ExternalLink, UtensilsCrossed, ShoppingCart, Hotel, Tent } from 'lucide-react';
 import { CATEGORIES, getCategoryLabel } from '@/lib/categories';
+import { useAppStore } from '@/lib/store';
 
 // ── Affiliate Section ──
 const AFFILIATE_LINKS: Record<string, { href: string; label: string; icon: React.ElementType; subLabel: string }[]> = {
@@ -196,10 +197,43 @@ export default function PlaceDetailPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const { setFavoriteIds } = useAppStore();
+  const { showToast } = useAppStore();
+
+  const toggleFavorite = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setFavoriteLoading(true);
+    try {
+      if (isFavorite) {
+        await supabase.from('favorites').delete().match({ user_id: user.id, place_id: id });
+        setIsFavorite(false);
+        showToast('즐겨찾기가 해제되었습니다.', 'success');
+      } else {
+        await supabase.from('favorites').insert({ user_id: user.id, place_id: id });
+        setIsFavorite(true);
+        showToast('즐겨찾기에 추가되었습니다.', 'success');
+      }
+      // store 업데이트
+      const { data: favs } = await supabase.from('favorites').select('place_id').eq('user_id', user.id);
+      setFavoriteIds((favs || []).map((f: any) => f.place_id));
+    } catch {
+      showToast('처리 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
 
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
       if (user?.email === 'onfons.it@gmail.com') {
         setIsAdmin(true);
       }
@@ -244,6 +278,14 @@ export default function PlaceDetailPage() {
 
     if (id) fetchDetails();
   }, [id]);
+
+  // 즐겨찾기 상태 확인
+  useEffect(() => {
+    if (!id || !currentUser) return;
+    supabase.from('favorites').select('id').match({ user_id: currentUser.id, place_id: id }).maybeSingle().then(({ data }) => {
+      setIsFavorite(!!data);
+    });
+  }, [id, currentUser]);
 
   const handleUpdate = async () => {
     // 1. Update Places table
@@ -317,12 +359,25 @@ export default function PlaceDetailPage() {
       
       {/* Reduced Top Margin Header */}
       <div className="sticky top-0 z-[110] p-4 flex items-center justify-between pointer-events-none">
-        <button 
-          onClick={() => router.back()} 
-          className="w-10 h-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-xl border border-slate-100 dark:border-slate-800 pointer-events-auto active:scale-90 transition-transform"
-        >
-          <ChevronLeft className="w-5 h-5 text-slate-900 dark:text-white" />
-        </button>
+        <div className="flex gap-2 pointer-events-auto">
+          <button
+            onClick={() => router.back()}
+            className="w-10 h-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-xl border border-slate-100 dark:border-slate-800 active:scale-90 transition-transform"
+          >
+            <ChevronLeft className="w-5 h-5 text-slate-900 dark:text-white" />
+          </button>
+          <button
+            onClick={toggleFavorite}
+            disabled={favoriteLoading}
+            className={`w-10 h-10 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-xl border active:scale-90 transition-all disabled:opacity-50 ${
+              isFavorite
+                ? 'bg-rose-500 border-rose-400'
+                : 'bg-white/90 dark:bg-slate-900/90 border-slate-100 dark:border-slate-800'
+            }`}
+          >
+            <Heart className={`w-5 h-5 ${isFavorite ? 'text-white fill-white' : 'text-slate-400'}`} />
+          </button>
+        </div>
 
         {isAdmin && (
           <div className="flex gap-2 pointer-events-auto">

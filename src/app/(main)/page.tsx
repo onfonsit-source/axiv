@@ -117,7 +117,7 @@ export default function MainPage() {
                 animate={{ x: 0 }}
                 exit={{ x: -420 }}
                 transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                className="absolute md:relative bottom-0 left-0 right-0 md:right-auto w-full md:w-[400px] h-[55vh] md:h-full bg-white dark:bg-slate-950 z-[80] shadow-2xl md:shadow-none border-r border-slate-100 dark:border-slate-900 flex flex-col"
+                className="absolute md:relative bottom-0 left-0 right-0 md:right-auto w-full md:w-[400px] h-[50vh] md:h-full bg-white dark:bg-slate-950 z-[80] shadow-2xl md:shadow-none border-r border-slate-100 dark:border-slate-900 flex flex-col"
               >
                 <div className="p-4 pb-2 mt-2">
 

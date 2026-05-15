@@ -5,7 +5,11 @@ interface AppState {
   setSearchQuery: (query: string) => void;
   selectedCategory: string;
   setSelectedCategory: (category: string) => void;
-  
+
+  // Favorites
+  favoriteIds: string[];
+  setFavoriteIds: (ids: string[]) => void;
+
   // Toast State
   toast: {
     message: string;
@@ -31,7 +35,11 @@ export const useAppStore = create<AppState>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   selectedCategory: 'all',
   setSelectedCategory: (category) => set({ selectedCategory: category }),
-  
+
+  // Favorites
+  favoriteIds: [],
+  setFavoriteIds: (ids) => set({ favoriteIds: ids }),
+
   toast: { message: '', type: 'info', visible: false },
   showToast: (message, type = 'info') => {
     set({ toast: { message, type, visible: true } });
@@ -40,8 +48,8 @@ export const useAppStore = create<AppState>((set) => ({
   hideToast: () => set((state) => ({ toast: { ...state.toast, visible: false } })),
 
   confirm: { title: '', message: '', visible: false, onConfirm: null },
-  showConfirm: (title, message, onConfirm) => set({ 
-    confirm: { title, message, visible: true, onConfirm } 
+  showConfirm: (title, message, onConfirm) => set({
+    confirm: { title, message, visible: true, onConfirm }
   }),
   hideConfirm: () => set((state) => ({ confirm: { ...state.confirm, visible: false } })),
 }));

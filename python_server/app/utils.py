@@ -162,7 +162,7 @@ def call_ai_model(prompt):
     }
     
     try:
-        response = requests.post(f"{NVIDIA_BASE_URL}/chat/completions", json=payload, headers=headers, timeout=120)
+        response = requests.post(f"{NVIDIA_BASE_URL}/chat/completions", json=payload, headers=headers, timeout=180)
         response.raise_for_status()
         data = response.json()
         return data['choices'][0]['message']['content']
