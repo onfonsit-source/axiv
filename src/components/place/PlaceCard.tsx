@@ -6,6 +6,16 @@ import { motion } from 'framer-motion';
 import { MapPin, Star, Phone, Clock, ShoppingBag } from 'lucide-react';
 import { getCategoryIcon, getCategoryLabel } from '@/lib/categories';
 
+/** 실제 의미 있는 웨이팅/주차 정보인지 확인 */
+function isValidInfo(val: string | undefined | null): boolean {
+  if (!val) return false;
+  const cleaned = val.trim();
+  if (cleaned.length < 5) return false; // 너무 짧으면 의미 없음
+  const ignore = ['없음', '정보 없음', '-', 'null', 'none', 'n/a'];
+  if (ignore.includes(cleaned.toLowerCase())) return false;
+  return true;
+}
+
 type MrtData = {
   name?: string;
   image?: string;
@@ -44,8 +54,8 @@ const defaultThumb = 'https://images.unsplash.com/photo-1504674900247-0877df9cc8
 export default function PlaceCard({ place, mrtData }: { place: Place; mrtData?: MrtData | null }) {
   const displayTitle = place.place_name || place.title;
   const hasMrt = mrtData && (mrtData.rating || mrtData.price || mrtData.description);
-  const hasWaiting = place.waiting_tip && place.waiting_tip !== '없음' && place.waiting_tip !== '정보 없음';
-  const hasParking = place.parking_info && place.parking_info !== '없음' && place.parking_info !== '정보 없음';
+  const hasWaiting = isValidInfo(place.waiting_tip);
+  const hasParking = isValidInfo(place.parking_info);
 
   return (
     <motion.div
