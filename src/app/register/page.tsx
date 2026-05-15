@@ -185,6 +185,7 @@ export default function RegisterPage() {
               lng: place.lng || 0,
               phone: place.phone,
               business_hours: place.business_hours || null,
+              break_time: place.break_time || null,
               representative_menu: place.menu_with_prices || null,
               place_description: place.place_description || null,
               waiting_tip: place.waiting_tip || null,
@@ -208,6 +209,7 @@ export default function RegisterPage() {
             place_id: placeId,
             timeline_seconds: place.timeline_seconds,
             creator_review: place.creator_review,
+            review_url: place.review_url || null,
             summary: `${place.place_description || '정보 없음'}\n\n${place.summary || ''}`
           }
         })
