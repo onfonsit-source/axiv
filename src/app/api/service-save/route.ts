@@ -127,9 +127,77 @@ export async function POST(req: Request) {
       }
     }
 
+    if (action === 'get_unverified_places') {
+      const { data: result, error } = await serviceClient
+        .from('places')
+        .select('*')
+        .eq('verified', false)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return NextResponse.json({ data: result || [] });
+    }
+
+    if (action === 'update_place_verified') {
+      const { id, verified } = data;
+      const { data: result, error } = await serviceClient
+        .from('places')
+        .update({ verified })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return NextResponse.json({ data: result });
+    }
+
+    if (action === 'upsert_place_vworld') {
+      // VWorld 지오코딩 결과 + verified 상태 포함 저장
+      const { data: result, error } = await serviceClient
+        .from('places')
+        .insert(data)
+        .select()
+        .single();
+      if (error) throw error;
+      return NextResponse.json({ data: result });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error: any) {
     console.error('[Service API] Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function GET(req: Request) {
+  if (!serviceRoleKey) {
+    return NextResponse.json({ error: 'Service role not configured' }, { status: 500 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get('action');
+
+    if (action === 'get_unverified') {
+      const { data, error } = await serviceClient
+        .from('places')
+        .select('*')
+        .eq('verified', false)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return NextResponse.json({ data: data || [] });
+    }
+
+    if (action === 'get_all_places') {
+      const { data, error } = await serviceClient
+        .from('places')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return NextResponse.json({ data: data || [] });
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  } catch (error: any) {
+    console.error('[Service API GET] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

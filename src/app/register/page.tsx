@@ -3,12 +3,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
-import { 
-  Play, 
-  Search, 
-  CheckCircle2, 
-  Loader2, 
-  MapPin, 
+import {
+  Play,
+  CheckCircle2,
+  Loader2,
+  MapPin,
   Sparkles,
   ChevronRight,
   Plus,
@@ -16,8 +15,7 @@ import {
   Clock,
   Phone,
   ShoppingBag,
-  ExternalLink,
-  Utensils
+  ExternalLink
 } from 'lucide-react';
 import Image from 'next/image';
 import { useAppStore } from '@/lib/store';
@@ -60,6 +58,18 @@ export default function RegisterPage() {
   };
 
   const { showToast } = useAppStore();
+
+  // 상호명 명확성 판단 함수
+  const isPlaceNameClear = (name: string): boolean => {
+    const cleaned = (name || '').trim();
+    if (cleaned.length < 2) return false;
+    // '미상', '정보없음', '알수없음' 등 모호한 패턴
+    const vaguePatterns = ['미상', '정보 없음', '정보없음', '알 수 없음', '알수없음', '모름', 'unknown', '???', '???'];
+    if (vaguePatterns.some(p => cleaned.includes(p))) return false;
+    // 일반적인 상호명 패턴 (특수문자만 있거나 너무 짧으면 모호)
+    if (/^[^가-힣a-zA-Z0-9]+$/.test(cleaned)) return false;
+    return true;
+  };
 
   // 초기 로딩 시 골드박스 상품 조회
   React.useEffect(() => {
@@ -124,7 +134,15 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
     if (successItems.includes(place.place_name)) return;
     if (savingIndex === index) return; // 중복 클릭 방지
     setSavingIndex(index);
-    
+
+    // place_name 검증 (2자 미만이면 저장 차단)
+    const placeName = (place.place_name || '').trim();
+    if (placeName.length < 2) {
+      showToast('상호명이 너무 짧습니다. 정확한 상호명을 입력해주세요.', 'error');
+      setSavingIndex(null);
+      return;
+    }
+
     setLoading(true);
     try {
       // 1. Content Upsert (via service API - bypass RLS)
@@ -147,11 +165,13 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
       if (contentJson.error) throw new Error(contentJson.error);
       const contentData = contentJson.data;
 
-      // 2. Place Dedup & Save (위도/경도 포함!)
+      // 2. Place Dedup & Save (위도/경도 + verified 포함!)
       let placeId: string;
+      let verifiedStatus = isPlaceNameClear(placeName); // 상호명 명확성 기본 판단
+
       const { data: existingPlace } = await supabase
         .from('places')
-        .select('id, lat, lng')
+        .select('id, lat, lng, verified, address')
         .eq('place_name', place.place_name)
         .eq('address', place.address || place.address_hint)
         .maybeSingle();
@@ -165,14 +185,24 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
           try {
             let updateLat = existingPlace.lat;
             let updateLng = existingPlace.lng;
+            let updateAddress = existingPlace.address;
             if (!updateLat || updateLat === 37.5665) {
               const addressToGeocode = place.address || place.address_hint;
               if (addressToGeocode) {
-                const geoRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(addressToGeocode)}&limit=1`);
-                const geoData = await geoRes.json();
-                if (geoData.features?.[0]?.geometry?.coordinates) {
-                  updateLng = geoData.features[0].geometry.coordinates[0];
-                  updateLat = geoData.features[0].geometry.coordinates[1];
+                try {
+                  const geoRes = await fetch('/api/vworld-geocode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: place.place_name, address: addressToGeocode })
+                  });
+                  const geoData = await geoRes.json();
+                  if (geoData.lat && geoData.lng) {
+                    updateLat = geoData.lat;
+                    updateLng = geoData.lng;
+                    if (geoData.fullAddress) updateAddress = geoData.fullAddress;
+                  }
+                } catch (e) {
+                  console.warn('VWORLD geocoding failed:', e);
                 }
               }
             }
@@ -180,43 +210,58 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
               waiting_tip: cleanWaitingExisting,
               parking_info: cleanParkingExisting,
               lat: updateLat,
-              lng: updateLng
+              lng: updateLng,
+              address: updateAddress,
+              verified: existingPlace.verified || verifiedStatus // 한 번이라도 verified=true면 유지
             }).eq('id', placeId);
           } catch (e) {
             console.warn('Update existing place failed:', e);
           }
         }
       } else {
-        // 주소 → 위도/경도 변환 (Geocoding)
+        // 상호명 → VWorld 검색 → 주소+좌표 획득
         let geocodedLat = place.lat || 0;
         let geocodedLng = place.lng || 0;
-        const addressToGeocode = place.address || place.address_hint;
-        if (addressToGeocode && (!place.lat || place.lat === 37.5665)) {
-          try {
-            const geoRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(addressToGeocode)}&limit=1`);
-            const geoData = await geoRes.json();
-            if (geoData.features?.[0]?.geometry?.coordinates) {
-              geocodedLng = geoData.features[0].geometry.coordinates[0];
-              geocodedLat = geoData.features[0].geometry.coordinates[1];
-            }
-          } catch (e) {
-            console.warn('Geocoding failed, using existing coords:', e);
+        let fullAddress = place.address || place.address_hint || '';
+        let geocodeSuccess = false;
+        // 1순위: 상호명(query)으로 VWorld 검색 → 주소+좌표
+        // 2순위: address로 좌표만 변환
+        try {
+          const geoRes = await fetch('/api/vworld-geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: place.place_name, address: place.address || place.address_hint })
+          });
+          const geoData = await geoRes.json();
+          if (geoData.lat && geoData.lng) {
+            geocodedLat = geoData.lat;
+            geocodedLng = geoData.lng;
+            geocodeSuccess = true;
+            if (geoData.fullAddress) fullAddress = geoData.fullAddress;
           }
+        } catch (e) {
+          console.warn('VWORLD search failed:', e);
         }
+
+        // 하이브리드 verified 결정:
+        // - VWorld 지오코딩 성공 AND 상호명 명확 → verified=true (자동 저장)
+        // - VWorld 지오코딩 실패 AND 상호명 명확 → verified=true (주소는 있으나 좌표 미확인)
+        // - 상호명 모호 → verified=false (임시 저장, 관리자 확인 필요)
+        const finalVerified = geocodeSuccess && verifiedStatus;
 
         // "없음" 값 정리
         const cleanWaiting = (place.waiting_tip && place.waiting_tip !== '없음' && place.waiting_tip !== '정보 없음' && place.waiting_tip.trim().length > 2) ? place.waiting_tip : null;
         const cleanParking = (place.parking_info && place.parking_info !== '없음' && place.parking_info !== '정보 없음' && place.parking_info.trim().length > 2) ? place.parking_info : null;
 
-        // Place Insert (via service API)
+        // 장소 저장 (VWorld에서 받은 상세 주소 + 좌표 사용)
         const placeRes = await fetch('/api/service-save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'upsert_place',
+            action: 'upsert_place_vworld',
             data: {
               place_name: place.place_name,
-              address: place.address || place.address_hint,
+              address: fullAddress,
               category: place.category,
               lat: geocodedLat,
               lng: geocodedLng,
@@ -226,7 +271,8 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
               representative_menu: place.menu_with_prices || null,
               place_description: place.place_description || null,
               waiting_tip: cleanWaiting,
-              parking_info: cleanParking
+              parking_info: cleanParking,
+              verified: finalVerified
             }
           })
         });
@@ -255,7 +301,8 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
       if (linkJson.error) throw new Error(linkJson.error);
 
       setSuccessItems([...successItems, place.place_name]);
-      showToast(`${place.place_name} 등록 성공!`, 'success');
+      const isAuto = isPlaceNameClear(place.place_name);
+      showToast(isAuto ? `${place.place_name} 자동 등록 완료!` : `${place.place_name} 임시 등록 완료 (관리자 확인 필요)`, isAuto ? 'success' : 'success');
     } catch (error: any) {
       console.error('Save error detailed:', error);
       showToast(`저장 실패: ${error.message || '알 수 없는 오류입니다. 다시 시도해 주세요.'}`, 'error');
@@ -355,7 +402,11 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{place.category}</span>
-                            <span className="text-[9px] font-bold text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">Verified</span>
+                            {isPlaceNameClear(place.place_name) ? (
+                              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded uppercase">Auto</span>
+                            ) : (
+                              <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase">미분류</span>
+                            )}
                           </div>
                           <input
                             value={place.place_name || ''}
@@ -509,6 +560,12 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
                           <><Plus className="w-4 h-4" /><span>등록</span></>
                         )}
                       </button>
+                      {!successItems.includes(place.place_name) && savingIndex !== index && isPlaceNameClear(place.place_name) && !place.place_name.includes('미상') && (
+                        <div className="text-[9px] font-bold text-emerald-500 text-center mt-1">자동 저장 (verified)</div>
+                      )}
+                      {!successItems.includes(place.place_name) && savingIndex !== index && !isPlaceNameClear(place.place_name) && !place.place_name.includes('미상') && place.place_name && (
+                        <div className="text-[9px] font-bold text-amber-500 text-center mt-1">관리자 확인 후 승인 필요</div>
+                      )}
                     </div>
                   </motion.div>
                 ))}
