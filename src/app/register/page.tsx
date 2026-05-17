@@ -222,10 +222,8 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
         // 상호명 → VWorld 검색 → 주소+좌표 획득
         let geocodedLat = place.lat || 0;
         let geocodedLng = place.lng || 0;
-        let fullAddress = place.address || place.address_hint || '';
+        let fullAddress = '';
         let geocodeSuccess = false;
-        // 1순위: 상호명(query)으로 VWorld 검색 → 주소+좌표
-        // 2순위: address로 좌표만 변환
         try {
           const geoRes = await fetch('/api/vworld-geocode', {
             method: 'POST',
@@ -243,11 +241,9 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
           console.warn('VWORLD search failed:', e);
         }
 
-        // 하이브리드 verified 결정:
-        // - VWorld 지오코딩 성공 AND 상호명 명확 → verified=true (자동 저장)
-        // - VWorld 지오코딩 실패 AND 상호명 명확 → verified=true (주소는 있으나 좌표 미확인)
-        // - 상호명 모호 → verified=false (임시 저장, 관리자 확인 필요)
+        // VWorld 검증 실패 시 address=null + verified=false
         const finalVerified = geocodeSuccess && verifiedStatus;
+        const finalAddress = geocodeSuccess ? fullAddress : null;
 
         // "없음" 값 정리
         const cleanWaiting = (place.waiting_tip && place.waiting_tip !== '없음' && place.waiting_tip !== '정보 없음' && place.waiting_tip.trim().length > 2) ? place.waiting_tip : null;
@@ -261,7 +257,7 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
             action: 'upsert_place_vworld',
             data: {
               place_name: place.place_name,
-              address: fullAddress,
+              address: finalAddress,
               category: place.category,
               lat: geocodedLat,
               lng: geocodedLng,
