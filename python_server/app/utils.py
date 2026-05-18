@@ -77,22 +77,60 @@ def get_youtube_full_data(url):
         print(f"yt-dlp Error: {e}")
         return None
 
-def perform_free_search(query):
-    """DuckDuckGo를 이용해 무료 웹 검색을 수행하고 컨텍스트를 생성합니다."""
+def _tavily_search(query, max_results=5):
+    """Tavily API로 검색합니다. 실패 시 None 반환."""
+    try:
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key:
+            return None
+        url = "https://api.tavily.com/search"
+        payload = {
+            "api_key": api_key,
+            "query": query,
+            "search_depth": "basic",
+            "max_results": max_results,
+        }
+        res = requests.post(url, json=payload, timeout=15)
+        if res.status_code != 200:
+            print(f"Tavily status {res.status_code}")
+            return None
+        data = res.json()
+        results = data.get("results", [])
+        if not results:
+            return None
+        context = ""
+        for r in results:
+            context += f"[Source: {r.get('url','')}] {r.get('content','')}\n\n"
+        return context
+    except Exception as e:
+        print(f"Tavily Error: {e}")
+        return None
+
+
+def _ddgs_search(query, max_results=5):
+    """DuckDuckGo fallback 검색."""
     try:
         with DDGS() as dg:
-            results = dg.text(query, max_results=5)
+            results = list(dg.text(query, max_results=max_results))
             context = ""
             for r in results:
                 context += f"[Source: {r['href']}] {r['body']}\n\n"
             return context
     except Exception as e:
-        print(f"Search Error: {e}")
+        print(f"DDGS Error: {e}")
         return ""
 
 
+def perform_free_search(query):
+    """Tavily 우선, 실패 시 DuckDuckGo fallback 웹 검색."""
+    context = _tavily_search(query)
+    if context is not None:
+        return context
+    return _ddgs_search(query)
+
+
 def perform_place_detail_search(place_name, address=""):
-    """상호명+주소 기반 상세 검색: 네이버 지도/플레이스 정보 활용"""
+    """상호명+주소 기반 상세 검색: Tavily 우선, 실패 시 DuckDuckGo fallback"""
     context = ""
     location = address if address else place_name
     queries = [
@@ -102,6 +140,15 @@ def perform_place_detail_search(place_name, address=""):
         f"{place_name} {location} 브레이크타임",
     ]
     labels = ["전화번호주소", "영업시간", "메뉴정보", "영업시간"]
+
+    # 1. Tavily 시도
+    all_text = " ".join(queries)
+    tavily_result = _tavily_search(all_text, max_results=8)
+    if tavily_result is not None:
+        context = tavily_result
+        return context
+
+    # 2. DDGS fallback
     try:
         for q, lbl in zip(queries, labels):
             try:
