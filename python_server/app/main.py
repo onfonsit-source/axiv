@@ -3,7 +3,7 @@ import aiohttp
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from .utils import extract_video_id, get_youtube_full_data, perform_free_search, call_ai_model, get_coordinates, perform_deep_search
+from .utils import extract_video_id, get_youtube_full_data, perform_free_search, call_ai_model, get_coordinates, perform_deep_search, perform_place_detail_search
 import os
 import json
 import re
@@ -240,6 +240,86 @@ async def analyze_video(request: AnalyzeRequest):
         },
         "places": places
     }
+
+
+class ReanalyzeRequest(BaseModel):
+    place_name: str
+
+
+@app.post("/api/reanalyze-place")
+async def reanalyze_place(request: ReanalyzeRequest):
+    """상호명으로 장소 정보만 재검색"""
+    place_name = request.place_name.strip()
+    if not place_name or len(place_name) < 2:
+        return JSONResponse({"places": []})
+
+    print(f"🔄 상호명 재검색: '{place_name}'")
+
+    # 1. DuckDuckGo 상세 검색
+    search_context = perform_place_detail_search(place_name)
+    if len(search_context) > 5000:
+        search_context = search_context[:5000]
+
+    # 2. AI 분석 프롬프트 (장소 상세만)
+    prompt = f"""You are a place information extraction assistant.
+
+Extract structured place details from the search results below.
+
+Place name to search: {place_name}
+
+Search Results:
+{search_context}
+
+Respond ONLY with a valid JSON array. Each object must have these fields:
+- place_name: "{place_name}" (fixed)
+- address: full road address
+- phone: phone number (XXX-XXXX-XXXX format)
+- category: one of "food", "cafe", "camping", "fishing", "travel", "accommodation"
+- business_hours: operating hours
+- break_time: break time (empty string if none)
+- menu_with_prices: menu items with prices
+- place_description: 2-3 sentence description
+- waiting_tip: waiting/parking information ("없음" if none)
+- parking_info: parking details ("없음" if none)
+- creator_review: summary review
+- summary: one-line summary
+- timeline_seconds: 0
+
+If no information found, return []"""
+
+    ai_result = call_ai_model(prompt)
+
+    try:
+        # JSON 파싱
+        cleaned = ai_result.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        places = json.loads(cleaned)
+        if not isinstance(places, list):
+            places = [places]
+    except Exception as e:
+        print(f"Reanalyze JSON Parse Error: {e}")
+        places = []
+
+    # 3. 좌표 추출
+    for place in places:
+        address = place.get('address', '')
+        if address and address not in ['', '정보 없음', '정보없음']:
+            lat, lng = get_coordinates(address)
+            place['lat'] = lat
+            place['lng'] = lng
+        else:
+            place['lat'] = 37.5665
+            place['lng'] = 126.9780
+
+    return {"places": places}
+
 
 if __name__ == "__main__":
     import uvicorn

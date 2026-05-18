@@ -15,7 +15,8 @@ import {
   Clock,
   Phone,
   ShoppingBag,
-  ExternalLink
+  ExternalLink,
+  Search
 } from 'lucide-react';
 import Image from 'next/image';
 import { useAppStore } from '@/lib/store';
@@ -146,6 +147,55 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
     const newPlaces = [...result.places];
     newPlaces[index] = { ...newPlaces[index], [field]: value };
     setResult({ ...result, places: newPlaces });
+  };
+
+  const [reanalyzingIndex, setReanalyzingIndex] = useState<number | null>(null);
+
+  const handleReanalyze = async (index: number) => {
+    const place = result?.places?.[index];
+    const currentName = place?.place_name || '';
+    const input = window.prompt('재검색할 상호명을 입력하세요:', currentName);
+    if (!input || input.trim().length < 2) return;
+
+    setReanalyzingIndex(index);
+    try {
+      const placeName = input.trim();
+      const res = await fetch('/api/reanalyze-place', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ place_name: placeName }),
+      });
+      const data = await res.json();
+      if (data.places?.length > 0) {
+        const updated = data.places[0];
+        const newPlaces = [...result.places];
+        newPlaces[index] = {
+          ...newPlaces[index],
+          place_name: updated.place_name || placeName,
+          address: updated.address || newPlaces[index].address,
+          phone: updated.phone || newPlaces[index].phone,
+          category: updated.category || newPlaces[index].category,
+          business_hours: updated.business_hours || newPlaces[index].business_hours,
+          break_time: updated.break_time || newPlaces[index].break_time,
+          menu_with_prices: updated.menu_with_prices || newPlaces[index].menu_with_prices,
+          place_description: updated.place_description || newPlaces[index].place_description,
+          waiting_tip: updated.waiting_tip || newPlaces[index].waiting_tip,
+          parking_info: updated.parking_info || newPlaces[index].parking_info,
+          creator_review: updated.creator_review || newPlaces[index].creator_review,
+          summary: updated.summary || newPlaces[index].summary,
+          lat: updated.lat || newPlaces[index].lat,
+          lng: updated.lng || newPlaces[index].lng,
+        };
+        setResult({ ...result, places: newPlaces });
+        showToast(`"${updated.place_name || placeName}" 정보를 업데이트했습니다.`, 'success');
+      } else {
+        showToast('재검색 결과가 없습니다. 다른 상호명으로 시도해보세요.', 'error');
+      }
+    } catch (e: any) {
+      showToast(`재검색 실패: ${e.message}`, 'error');
+    } finally {
+      setReanalyzingIndex(null);
+    }
   };
 
   const handleSave = async (place: any, index: number) => {
@@ -419,8 +469,12 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
                             {isPlaceNameClear(place.place_name) ? (
                               <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded uppercase">Auto</span>
                             ) : (
-                              <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase">미분류</span>
+                              <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:amber-900/30 px-1.5 py-0.5 rounded uppercase">미분류</span>
                             )}
+                            <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                              <span>📺</span>
+                              <span>{result.metadata.creator_name}</span>
+                            </span>
                           </div>
                           <input
                             value={place.place_name || ''}
@@ -572,6 +626,17 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
                           <span>상호명 확인 필요</span>
                         ) : (
                           <><Plus className="w-4 h-4" /><span>등록</span></>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleReanalyze(index)}
+                        disabled={reanalyzingIndex === index}
+                        className="w-full py-2.5 rounded-xl font-bold text-[11px] transition-all flex items-center justify-center gap-1.5 mt-1.5 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {reanalyzingIndex === index ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /><span>재검색 중...</span></>
+                        ) : (
+                          <><Search className="w-3.5 h-3.5" /><span>상호명으로 재검색</span></>
                         )}
                       </button>
                       {!successItems.includes(place.place_name) && savingIndex !== index && isPlaceNameClear(place.place_name) && !place.place_name.includes('미상') && (
