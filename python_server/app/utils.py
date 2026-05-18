@@ -117,12 +117,12 @@ def perform_place_detail_search(place_name, address=""):
 
 
 def perform_deep_search(title, uploader):
-    """5단계 심층 검색: 제목→장소명→전화번호/주소→메뉴/영업시간→블로그리뷰"""
+    """5단계 심층 검색: 채널명+제목 기반으로 위치+상세정보 정확히 검색"""
     context = ""
     queries = [
-        f"{title} {uploader} 맛집 위치 주소",
-        f"{title} 전화번호 주소",
-        f"{title} 영업시간 휴무일",
+        f"{uploader} {title} 위치 주소",
+        f"{title} {uploader} 전화번호 주소",
+        f"{title} 영업시간 휴무일 브레이크타임",
         f"{title} 메뉴 가격",
         f"{uploader} {title} 블로그 리뷰 후기",
     ]

@@ -57,7 +57,7 @@ export default function RegisterPage() {
       .catch(() => {});
   };
 
-  const { showToast } = useAppStore();
+  const { showToast, showConfirm } = useAppStore();
 
   // 상호명 명확성 판단 함수
   const isPlaceNameClear = (name: string): boolean => {
@@ -117,7 +117,13 @@ const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분 타임�
       });
 
       if (validPlaces.length === 0) {
-        throw new Error('영상에서 정확한 상호명을 찾을 수 없습니다. 상호명이 더 명확하게 나오는 영상으로 다시 시도해주세요.');
+        showConfirm(
+          '상호명을 찾을 수 없습니다',
+          '영상에서 정확한 상호명을 분석하지 못했습니다.\n상호명이 더 명확히 나오는 영상으로 다시 시도해주세요.\n\n자세한 장소명을 언급하는 부분이 포함된 영상을 권장합니다.',
+          () => {}
+        );
+        setResult(null);
+        return;
       }
 
       setResult(data);
